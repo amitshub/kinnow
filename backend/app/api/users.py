@@ -58,7 +58,12 @@ def update_user(
     if payload.role == UserRole.staff and not payload.packhouse_id:
         raise HTTPException(status_code=400, detail="packhouse_id is required for staff users")
 
+    existing = db.query(User).filter(User.mobile == payload.mobile, User.id != user_id).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="A user with this mobile number already exists")
+
     user.name = payload.name
+    user.mobile = payload.mobile
     user.role = payload.role
     user.packhouse_id = None if payload.role == UserRole.admin else payload.packhouse_id
     if payload.password:
