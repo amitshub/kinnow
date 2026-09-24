@@ -208,8 +208,9 @@ function AdminApp({ session, onLogout, toast, showToast }) {
 
     try {
       if (editId) {
-        await api.updateUser(editId, {
+          await api.updateUser(editId, {
           name: payload.name,
+          mobile: payload.mobile,
           role: roleToApi(payload.role),
           packhouse_id: payload.role === "Admin" ? null : ph?.id,
           password: payload.password || undefined,

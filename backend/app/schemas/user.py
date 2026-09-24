@@ -21,6 +21,7 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     name: str
+    mobile: str
     role: UserRole
     packhouse_id: int | None = None
     password: str | None = None  # omit to keep the current password
