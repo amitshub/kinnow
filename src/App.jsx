@@ -82,17 +82,6 @@ const mapDaySummary = (d) => ({
   prevBalance: d.prev_balance,
 });
 
-const mapPayment = (p) => ({
-  id: p.id,
-  growerId: p.grower_id,
-  growerName: p.grower_name,
-  account: p.account || "",
-  amount: p.amount,
-  date: p.request_date,
-  status: p.status,
-  note: p.note || "",
-});
-
 const roleToUi = (role) => (role === "admin" ? "Admin" : "Packhouse User");
 const roleToApi = (role) => (role === "Admin" ? "admin" : "staff");
 
