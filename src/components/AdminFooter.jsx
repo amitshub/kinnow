@@ -3,7 +3,8 @@ import {
   List,
   CirclePlus,
   House,
-  CircleUserRound 
+  CircleUserRound,
+  Banknote,
 } from "lucide-react";
 
 export default function AdminFooter({
@@ -49,7 +50,19 @@ export default function AdminFooter({
         </span>
       </button>
 
-      {/* Book */}
+      {/* Payments */}
+      <button
+        className={activeTab === "payments" ? "active" : ""}
+        onClick={() => onChange("payments")}
+      >
+        <Banknote size={22} />
+
+        <span>
+          Payments
+        </span>
+      </button>
+
+      {/* Users */}
       <button
         className={activeTab === "user" ? "active" : ""}
         onClick={() => onChange("user")}

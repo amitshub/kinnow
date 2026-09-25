@@ -24,6 +24,7 @@ import GrowersView from "./views/GrowersView";
 import PaymentsView from "./views/PaymentsView";
 import AdminUsersView from "./views/AdminUsersView";
 import AdminOrdersView from "./views/AdminOrdersView";
+import AdminPaymentsView from "./views/AdminPaymentsView";
 import AdminBookForm from "./views/AdminBookForm";
 import AdminHome from "./views/AdminHome";
 
@@ -36,6 +37,18 @@ import { todayStr, shiftDate } from "./utils";
    these adapt the real backend responses to that same shape so the
    presentational components don't need to change.
    ===================================================== */
+const mapPayment = (p) => ({
+  id: p.id,
+  code: p.code,
+  growerId: p.grower_id,
+  growerName: p.grower_name,
+  packhouseId: p.packhouse_id,
+  account: p.account || "",
+  amount: p.amount,
+  date: p.request_date,
+  status: p.status,
+  note: p.note || "",
+});
 
 const mapGrower = (g) => ({
   id: g.id,
@@ -162,24 +175,27 @@ function AdminApp({ session, onLogout, toast, showToast }) {
   const [users, setUsers] = useState([]);
   const [orders, setOrders] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [payments, setPayments] = useState([]);
   const [version, setVersion] = useState(0);
   const bump = () => setVersion((v) => v + 1);
 
-  useEffect(() => {
+    useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        const [ph, u, ord, cust] = await Promise.all([
+        const [ph, u, ord, cust, pay] = await Promise.all([
           api.listPackhouses(),
           api.listUsers(),
           api.listOrders(),
           api.listCustomers(),
+          api.listPayments({ all_packhouses: true }),
         ]);
         if (cancelled) return;
         setPackhouses(ph);
         setUsers(u.map(mapUser));
         setOrders(ord);
         setCustomers(cust);
+        setPayments(pay.map(mapPayment));
       } catch (e) {
         if (!cancelled) showToast(e.message);
       }
@@ -308,6 +324,26 @@ function AdminApp({ session, onLogout, toast, showToast }) {
       showToast(e.message);
     }
   }
+  
+    async function handleApprovePayment(id) {
+    try {
+      await api.approvePayment(id);
+      showToast("Payment marked as paid ✓");
+      bump();
+    } catch (e) {
+      showToast(e.message);
+    }
+  }
+
+  async function handleRejectPayment(id) {
+    try {
+      await api.rejectPayment(id);
+      showToast("Payment request rejected");
+      bump();
+    } catch (e) {
+      showToast(e.message);
+    }
+  }
 
   return (
     <div className="kinnow-app">
@@ -339,6 +375,15 @@ function AdminApp({ session, onLogout, toast, showToast }) {
             )}
 
             {activeTab === "user" && <AdminUsersView users={users} onOpenUser={setUserDetailId} />}
+
+            {activeTab === "payments" && (
+              <AdminPaymentsView
+                payments={payments}
+                packhouses={packhouses}
+                onApprove={handleApprovePayment}
+                onReject={handleRejectPayment}
+              />
+            )}
           </div>
         </div>
 
