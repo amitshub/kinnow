@@ -37,18 +37,6 @@ import { todayStr, shiftDate } from "./utils";
    these adapt the real backend responses to that same shape so the
    presentational components don't need to change.
    ===================================================== */
-const mapPayment = (p) => ({
-  id: p.id,
-  code: p.code,
-  growerId: p.grower_id,
-  growerName: p.grower_name,
-  packhouseId: p.packhouse_id,
-  account: p.account || "",
-  amount: p.amount,
-  date: p.request_date,
-  status: p.status,
-  note: p.note || "",
-});
 
 const mapGrower = (g) => ({
   id: g.id,
@@ -80,6 +68,19 @@ const mapDaySummary = (d) => ({
   dispatched: d.dispatched,
   balance: d.balance,
   prevBalance: d.prev_balance,
+});
+
+const mapPayment = (p) => ({
+  id: p.id,
+  code: p.code,
+  growerId: p.grower_id,
+  growerName: p.grower_name,
+  packhouseId: p.packhouse_id,
+  account: p.account || "",
+  amount: p.amount,
+  date: p.request_date,
+  status: p.status,
+  note: p.note || "",
 });
 
 const roleToUi = (role) => (role === "admin" ? "Admin" : "Packhouse User");
@@ -165,19 +166,25 @@ function AdminApp({ session, onLogout, toast, showToast }) {
   const [orders, setOrders] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [brands, setBrands] = useState([]);
+  const [varieties, setVarieties] = useState([]);
+  const [qualities, setQualities] = useState([]);
   const [version, setVersion] = useState(0);
   const bump = () => setVersion((v) => v + 1);
 
-    useEffect(() => {
+  useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        const [ph, u, ord, cust, pay] = await Promise.all([
+        const [ph, u, ord, cust, pay, br, vr, ql] = await Promise.all([
           api.listPackhouses(),
           api.listUsers(),
           api.listOrders(),
           api.listCustomers(),
           api.listPayments({ all_packhouses: true }),
+          api.listBrands(),
+          api.listVarieties(),
+          api.listQualities(),
         ]);
         if (cancelled) return;
         setPackhouses(ph);
@@ -185,6 +192,9 @@ function AdminApp({ session, onLogout, toast, showToast }) {
         setOrders(ord);
         setCustomers(cust);
         setPayments(pay.map(mapPayment));
+        setBrands(br);
+        setVarieties(vr);
+        setQualities(ql);
       } catch (e) {
         if (!cancelled) showToast(e.message);
       }
@@ -213,7 +223,7 @@ function AdminApp({ session, onLogout, toast, showToast }) {
 
     try {
       if (editId) {
-          await api.updateUser(editId, {
+        await api.updateUser(editId, {
           name: payload.name,
           mobile: payload.mobile,
           role: roleToApi(payload.role),
@@ -313,8 +323,10 @@ function AdminApp({ session, onLogout, toast, showToast }) {
       showToast(e.message);
     }
   }
-  
-    async function handleApprovePayment(id) {
+
+  /* ---------------- PAYMENTS ---------------- */
+
+  async function handleApprovePayment(id) {
     try {
       await api.approvePayment(id);
       showToast("Payment marked as paid ✓");
@@ -360,7 +372,14 @@ function AdminApp({ session, onLogout, toast, showToast }) {
             )}
 
             {activeTab === "book" && (
-              <AdminBookForm customers={customers} packhouses={packhouses} onBookOrder={handleBookOrder} />
+              <AdminBookForm
+                customers={customers}
+                packhouses={packhouses}
+                brands={brands}
+                varieties={varieties}
+                qualities={qualities}
+                onBookOrder={handleBookOrder}
+              />
             )}
 
             {activeTab === "user" && <AdminUsersView users={users} onOpenUser={setUserDetailId} />}

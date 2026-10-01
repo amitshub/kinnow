@@ -179,6 +179,19 @@ export const api = {
   updateOrderChallan(id, payload) {
     return request(`/orders/${id}/challan`, { method: "PATCH", body: payload });
   },
+
+  // ---- Catalog: brands / varieties / qualities ----
+  // Read-only from the app's perspective — new values are added directly
+  // in the database for now, no in-app management screen.
+  listBrands() {
+    return request("/brands");
+  },
+  listVarieties() {
+    return request("/varieties");
+  },
+  listQualities() {
+    return request("/qualities");
+  },
 };
 
 export { ApiError };

@@ -10,8 +10,13 @@ Creates:
   - 1 staff login per packhouse -> mobile 9999900002 / password staff123 (PH-1), etc.
   - A handful of sample growers for PH-1
   - Two demo orders for the Admin Orders screen
+  - Default brand/variety/quality options for the order-booking form
 
 Change the default passwords immediately in any real deployment.
+
+Safe to re-run: the item_options seed and the rest of the seed are guarded
+independently, so running this again on an already-seeded database (e.g.
+after adding the item_options feature) will only add what's missing.
 """
 
 from datetime import date, timedelta
@@ -19,6 +24,7 @@ from datetime import date, timedelta
 from app.core.config import settings
 from app.core.security import hash_password
 from app.db.session import Base, SessionLocal, engine
+from app.models.brand import Brand
 from app.models.company_settings import CompanySettings
 from app.models.customer import Customer
 from app.models.grower import Grower
@@ -26,7 +32,9 @@ from app.models.message_content import MessageContent
 from app.models.message_sender import MessageSender
 from app.models.order import Order, OrderItem, OrderStatus
 from app.models.packhouse import Packhouse
+from app.models.quality import Quality
 from app.models.user import User, UserRole
+from app.models.variety import Variety
 
 PACKHOUSES = [
     ("PH-1 Abohar", "Abohar"),
@@ -42,13 +50,32 @@ SAMPLE_GROWERS = [
     ("G005", "Parveen Fruit Farm", "Rampura, Hanumangarh", "Hanumangarh", "9876500005", "Parveen Kumar - Axis 3340"),
 ]
 
+DEFAULT_BRANDS = ["Eagle", "KGR", "Star", "Royal"]
+DEFAULT_VARIETIES = ["60 PCS", "72 PCS", "84 PCS", "96 PCS"]
+DEFAULT_QUALITIES = ["HD Green", "Standard", "Export"]
+
 
 def run():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
+        # Seeded independently of the guard below, so re-running this against
+        # an already-seeded database (e.g. right after deploying this feature)
+        # still populates these new tables without touching anything else.
+        if db.query(Brand).count() == 0:
+            for name in DEFAULT_BRANDS:
+                db.add(Brand(name=name, is_active=True))
+        if db.query(Variety).count() == 0:
+            for name in DEFAULT_VARIETIES:
+                db.add(Variety(name=name, is_active=True))
+        if db.query(Quality).count() == 0:
+            for name in DEFAULT_QUALITIES:
+                db.add(Quality(name=name, is_active=True))
+        db.commit()
+        print("Seeded default brands/varieties/qualities (where missing).")
+
         if db.query(Packhouse).count() > 0:
-            print("Database already seeded — skipping.")
+            print("Database already seeded — skipping the rest.")
             return
 
         packhouses = []

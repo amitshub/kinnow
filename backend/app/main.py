@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, customers, day_summary, growers, incoming, orders, packhouses, payments, users
+from app.api import auth, catalog, customers, day_summary, growers, incoming, orders, packhouses, payments, users
 from app.core.config import settings
 
 app = FastAPI(title=settings.APP_NAME)
@@ -23,6 +23,7 @@ app.include_router(payments.router)
 app.include_router(users.router)
 app.include_router(orders.router)
 app.include_router(customers.router)
+app.include_router(catalog.router)
 
 
 @app.get("/")

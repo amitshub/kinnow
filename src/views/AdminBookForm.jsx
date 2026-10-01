@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Plus, X, Send, MessageCircle, Building2, UserPlus, Check } from "lucide-react";
 import { todayStr } from "../utils";
 
-function AdminBookForm({ customers, packhouses, onBookOrder }) {
+function AdminBookForm({ customers, packhouses, brands, varieties, qualities, onBookOrder }) {
   const [customerMode, setCustomerMode] = useState("existing"); // "existing" | "new"
   const [existingCustomerId, setExistingCustomerId] = useState("");
   const [newName, setNewName] = useState("");
@@ -14,9 +14,9 @@ function AdminBookForm({ customers, packhouses, onBookOrder }) {
 
   const [items, setItems] = useState([]);
 
-  const [brand, setBrand] = useState("Eagle");
-  const [variety, setVariety] = useState("60 PCS");
-  const [quality, setQuality] = useState("HD Green");
+  const [brand, setBrand] = useState(brands[0]?.name || "");
+  const [variety, setVariety] = useState(varieties[0]?.name || "");
+  const [quality, setQuality] = useState(qualities[0]?.name || "");
   const [qty, setQty] = useState("");
 
   function addItem() {
@@ -70,9 +70,9 @@ function AdminBookForm({ customers, packhouses, onBookOrder }) {
     setPackhouseId(packhouses[0]?.id || "");
     setRemarks("");
     setItems([]);
-    setBrand("Eagle");
-    setVariety("60 PCS");
-    setQuality("HD Green");
+    setBrand(brands[0]?.name || "");
+    setVariety(varieties[0]?.name || "");
+    setQuality(qualities[0]?.name || "");
     setQty("");
   }
 
@@ -208,23 +208,27 @@ function AdminBookForm({ customers, packhouses, onBookOrder }) {
 
         <div className="book-add-item-row">
           <select className="book-form-control" value={brand} onChange={(e) => setBrand(e.target.value)}>
-            <option>Eagle</option>
-            <option>KGR</option>
-            <option>Star</option>
-            <option>Royal</option>
+            {brands.map((b) => (
+              <option key={b.id} value={b.name}>
+                {b.name}
+              </option>
+            ))}
           </select>
 
           <select className="book-form-control" value={variety} onChange={(e) => setVariety(e.target.value)}>
-            <option>60 PCS</option>
-            <option>72 PCS</option>
-            <option>84 PCS</option>
-            <option>96 PCS</option>
+            {varieties.map((v) => (
+              <option key={v.id} value={v.name}>
+                {v.name}
+              </option>
+            ))}
           </select>
 
           <select className="book-form-control" value={quality} onChange={(e) => setQuality(e.target.value)}>
-            <option>HD Green</option>
-            <option>Standard</option>
-            <option>Export</option>
+            {qualities.map((q) => (
+              <option key={q.id} value={q.name}>
+                {q.name}
+              </option>
+            ))}
           </select>
 
           <input
