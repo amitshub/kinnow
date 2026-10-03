@@ -11,6 +11,7 @@ class OrderItemIn(BaseModel):
     variety: str
     quality: str
     qty: int
+    rate: float | None = None
 
 
 class OrderItemOut(OrderItemIn):
@@ -22,6 +23,7 @@ class OrderCreate(BaseModel):
     customer_id: int
     order_date: date
     remarks: str | None = None
+    truck_tonnage: float | None = None
     items: list[OrderItemIn]
 
 
@@ -57,6 +59,7 @@ class OrderOut(BaseModel):
     order_date: date
     status: OrderStatus
     remarks: str | None
+    truck_tonnage: float | None
     truck: str | None
     driver: str | None
     transporter: str | None

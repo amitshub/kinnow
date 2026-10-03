@@ -18,12 +18,12 @@ def _total_crates(order: Order) -> int:
 
 def send_order_assigned_notification(order_id: int) -> None:
     """
-    Fire-and-forget: notifies the packhouse's staff user via WhatsApp that a
-    new order has been assigned to them. Runs as a FastAPI background task,
-    which executes after the request's own DB session may already be closed —
-    so this opens its own session rather than reusing one. Any failure here
-    is logged but must never affect the order-creation response, so every
-    step is wrapped defensively.
+    Fire-and-forget: notifies the packhouse's staff user AND the customer via
+    WhatsApp that a new order has been booked/assigned. Runs as a FastAPI
+    background task, which executes after the request's own DB session may
+    already be closed — so this opens its own session rather than reusing
+    one. Any failure here is logged but must never affect the order-creation
+    response, so every step is wrapped defensively.
     """
     db = SessionLocal()
     try:
@@ -35,16 +35,6 @@ def send_order_assigned_notification(order_id: int) -> None:
         )
         if not order:
             logger.warning("WhatsApp notify: order %s not found", order_id)
-            return
-
-        staff = (
-            db.query(User)
-            .filter(User.packhouse_id == order.packhouse_id, User.role == UserRole.staff, User.is_active.is_(True))
-            .order_by(User.id)
-            .first()
-        )
-        if not staff or not staff.mobile:
-            logger.warning("WhatsApp notify: no active staff with a mobile number for packhouse %s", order.packhouse_id)
             return
 
         company = db.query(CompanySettings).first()
@@ -62,9 +52,6 @@ def send_order_assigned_notification(order_id: int) -> None:
             logger.warning("WhatsApp notify: no active 'order_packhouse' message_content configured")
             return
 
-        # WhatsApp template variables cannot contain newlines (Meta/Twilio will
-        # reject the whole send with error 21656 "ContentVariables Parameter
-        # is invalid") — so items are joined on one line instead of one-per-line.
         items_text = "; ".join(
             f"{i.brand} {i.variety} – {i.quality} – {i.qty} crates" for i in order.items
         )
@@ -80,13 +67,42 @@ def send_order_assigned_notification(order_id: int) -> None:
         from twilio.rest import Client  # imported lazily so the package is only required when sending
 
         client = Client(company.twilio_sid, company.twilio_token)
-        client.messages.create(
-            from_=f"whatsapp:{content.sender.sender_number}",
-            to=f"whatsapp:+91{staff.mobile}",
-            content_sid=content.content_sid,
-            content_variables=content_variables,
+
+        # ---- Recipient 1: packhouse staff ----
+        staff = (
+            db.query(User)
+            .filter(User.packhouse_id == order.packhouse_id, User.role == UserRole.staff, User.is_active.is_(True))
+            .order_by(User.id)
+            .first()
         )
-        logger.info("WhatsApp notify: sent order %s alert to %s", order.code, staff.mobile)
+        if staff and staff.mobile:
+            try:
+                client.messages.create(
+                    from_=f"whatsapp:{content.sender.sender_number}",
+                    to=f"whatsapp:+91{staff.mobile}",
+                    content_sid=content.content_sid,
+                    content_variables=content_variables,
+                )
+                logger.info("WhatsApp notify: sent order %s alert to packhouse staff %s", order.code, staff.mobile)
+            except Exception:
+                logger.exception("WhatsApp notify: failed to send to packhouse staff for order %s", order_id)
+        else:
+            logger.warning("WhatsApp notify: no active staff with a mobile number for packhouse %s", order.packhouse_id)
+
+        # ---- Recipient 2: customer (same message, per product decision) ----
+        if order.customer.mobile:
+            try:
+                client.messages.create(
+                    from_=f"whatsapp:{content.sender.sender_number}",
+                    to=f"whatsapp:+91{order.customer.mobile}",
+                    content_sid=content.content_sid,
+                    content_variables=content_variables,
+                )
+                logger.info("WhatsApp notify: sent order %s alert to customer %s", order.code, order.customer.mobile)
+            except Exception:
+                logger.exception("WhatsApp notify: failed to send to customer for order %s", order_id)
+        else:
+            logger.warning("WhatsApp notify: no mobile number on file for customer on order %s", order_id)
 
     except Exception:  # noqa: BLE001 — never let a notification failure break order creation
         logger.exception("WhatsApp notify: failed to send for order %s", order_id)

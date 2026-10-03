@@ -25,6 +25,7 @@ class Order(Base):
     order_date = Column(Date, nullable=False)
     status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.pending)
     remarks = Column(String(255), nullable=True)
+    truck_tonnage = Column(Float, nullable=True)  # expected truck tonnage set at booking time, e.g. 15, 16, 17
 
     # Dispatch / challan details — filled in once the order ships.
     truck = Column(String(40), nullable=True)
@@ -55,5 +56,6 @@ class OrderItem(Base):
     variety = Column(String(60), nullable=False)
     quality = Column(String(60), nullable=False)
     qty = Column(Integer, nullable=False)
+    rate = Column(Float, nullable=True)  # optional price per unit for this item
 
     order = relationship("Order", back_populates="items")

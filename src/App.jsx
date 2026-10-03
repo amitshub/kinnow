@@ -169,8 +169,14 @@ function AdminApp({ session, onLogout, toast, showToast }) {
   const [brands, setBrands] = useState([]);
   const [varieties, setVarieties] = useState([]);
   const [qualities, setQualities] = useState([]);
+  const [bookEditOrder, setBookEditOrder] = useState(null);
   const [version, setVersion] = useState(0);
   const bump = () => setVersion((v) => v + 1);
+
+  function handleTabChange(tab) {
+    if (tab !== "book") setBookEditOrder(null);
+    setActiveTab(tab);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -293,15 +299,82 @@ function AdminApp({ session, onLogout, toast, showToast }) {
     }
   }
 
-  function handleWhatsApp(order) {
+  function handleWhatsAppPackhouse(order) {
+    const staff = users.find((u) => u.role === "Packhouse User" && u.packhouseId === order.packhouse.id);
+    if (!staff?.mobile) {
+      showToast("No staff mobile number found for this packhouse");
+      return;
+    }
+    const lines = order.items
+      .map((i) => `• ${i.brand} ${i.variety} – ${i.quality} – ${i.qty} crates${i.rate ? ` @ ₹${i.rate}` : ""}`)
+      .join("\n");
+    const tonnageLine = order.truck_tonnage ? `\nTonnage: ${order.truck_tonnage} MT` : "";
+    const totalCr = order.items.reduce((s, i) => s + Number(i.qty || 0), 0);
+    const text = `*New Order Alert – ${order.packhouse.name}*\n\nCustomer: ${order.customer.name}\nItems:\n${lines}${tonnageLine}\n\nTotal: ${totalCr} crates\n\nPlease process accordingly.`;
+    const phone = staff.mobile.replace(/\D/g, "");
+    window.open(`https://wa.me/91${phone}?text=${encodeURIComponent(text)}`, "_blank");
+  }
+
+  function handleWhatsAppCustomer(order) {
     if (!order.customer.mobile) {
       showToast("No mobile number on file for this customer");
       return;
     }
-    const lines = order.items.map((i) => `• ${i.brand} ${i.variety} – ${i.quality} – ${i.qty} crates`).join("\n");
-    const text = `Dear ${order.customer.name},\n\nYour order ${order.code} status: ${order.status}.\n${lines}\n\nThank you.`;
+    const lines = order.items
+      .map((i) => `• ${i.brand} ${i.variety} – ${i.quality} – ${i.qty} crates${i.rate ? ` @ ₹${i.rate}` : ""}`)
+      .join("\n");
+    const tonnageLine = order.truck_tonnage ? `\nTonnage: ${order.truck_tonnage} MT` : "";
+    const totalCr = order.items.reduce((s, i) => s + Number(i.qty || 0), 0);
+    const text = `Dear ${order.customer.name},\n\nYour order ${order.code} has been booked:\n${lines}${tonnageLine}\n\nTotal: ${totalCr} crates\n\nThank you.`;
     const phone = order.customer.mobile.replace(/\D/g, "");
     window.open(`https://wa.me/91${phone}?text=${encodeURIComponent(text)}`, "_blank");
+  }
+
+  function handleEditOrder(order) {
+    setBookEditOrder(order);
+    setActiveTab("book");
+  }
+
+  function handleCancelEdit() {
+    setBookEditOrder(null);
+  }
+
+  async function handleUpdateOrder(id, payload) {
+    try {
+      let customerId = payload.customer_id;
+      if (!customerId && payload.new_customer) {
+        const created = await api.createCustomer(payload.new_customer);
+        customerId = created.id;
+        setCustomers((list) => [...list, created]);
+      }
+      await api.updateOrder(
+        id,
+        {
+          customer_id: customerId,
+          order_date: payload.order_date,
+          remarks: payload.remarks,
+          truck_tonnage: payload.truck_tonnage,
+          items: payload.items,
+        },
+        payload.packhouse_id
+      );
+      showToast("Order updated ✓");
+      setBookEditOrder(null);
+      bump();
+      setActiveTab("orders");
+    } catch (e) {
+      showToast(e.message);
+    }
+  }
+
+  async function handleDeleteOrder(id) {
+    try {
+      await api.deleteOrder(id);
+      showToast("Order deleted");
+      bump();
+    } catch (e) {
+      showToast(e.message);
+    }
   }
 
   async function handleBookOrder(payload) {
@@ -313,7 +386,13 @@ function AdminApp({ session, onLogout, toast, showToast }) {
         setCustomers((list) => [...list, created]);
       }
       await api.createOrder(
-        { customer_id: customerId, order_date: payload.order_date, remarks: payload.remarks, items: payload.items },
+        {
+          customer_id: customerId,
+          order_date: payload.order_date,
+          remarks: payload.remarks,
+          truck_tonnage: payload.truck_tonnage,
+          items: payload.items,
+        },
         payload.packhouse_id
       );
       showToast("Order booked ✓");
@@ -357,7 +436,10 @@ function AdminApp({ session, onLogout, toast, showToast }) {
               <AdminHome
                 adminName={session.name}
                 orders={orders}
-                onNewOrder={() => setActiveTab("book")}
+                onNewOrder={() => {
+                  setBookEditOrder(null);
+                  setActiveTab("book");
+                }}
                 onOrderList={() => setActiveTab("orders")}
               />
             )}
@@ -367,7 +449,11 @@ function AdminApp({ session, onLogout, toast, showToast }) {
                 orders={orders}
                 onStatusChange={handleStatusChange}
                 onSaveChallan={handleSaveChallan}
-                onWhatsApp={handleWhatsApp}
+                isAdmin
+                onWhatsAppPackhouse={handleWhatsAppPackhouse}
+                onWhatsAppCustomer={handleWhatsAppCustomer}
+                onEditOrder={handleEditOrder}
+                onDeleteOrder={handleDeleteOrder}
               />
             )}
 
@@ -378,7 +464,10 @@ function AdminApp({ session, onLogout, toast, showToast }) {
                 brands={brands}
                 varieties={varieties}
                 qualities={qualities}
+                editingOrder={bookEditOrder}
                 onBookOrder={handleBookOrder}
+                onUpdateOrder={handleUpdateOrder}
+                onCancelEdit={handleCancelEdit}
               />
             )}
 
@@ -401,7 +490,7 @@ function AdminApp({ session, onLogout, toast, showToast }) {
           </button>
         )}
 
-        <AdminFooter activeTab={activeTab} onChange={setActiveTab} />
+        <AdminFooter activeTab={activeTab} onChange={handleTabChange} />
       </div>
 
       <UserDetailSheet
@@ -701,6 +790,7 @@ function WorkerApp({ session, onLogout, toast, showToast }) {
                 onStatusChange={handleOrderStatusChange}
                 onSaveChallan={handleSaveChallan}
                 onWhatsApp={handleWhatsApp}
+                isAdmin={false}
               />
             )}
           </div>

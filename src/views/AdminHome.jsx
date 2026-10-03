@@ -1,5 +1,6 @@
 import React from "react";
 import { ShoppingCart, Clock, Truck, Plus, Package, ArrowRight } from "lucide-react";
+import { todayStr } from "../utils";
 
 function totalCrates(order) {
   return order.items.reduce((total, item) => total + Number(item.qty || 0), 0);
@@ -9,7 +10,12 @@ const AdminHome = ({ adminName, orders = [], onNewOrder, onOrderList }) => {
   const total = orders.length;
   const pending = orders.filter((o) => o.status === "Pending").length;
   const dispatched = orders.filter((o) => o.status === "Dispatched").length;
-  const confirmed = orders.filter((o) => o.status === "Confirmed").length;
+
+  const today = todayStr();
+  const todaysOrders = orders.filter((o) => o.order_date === today);
+  const todaysBooked = todaysOrders.length;
+  const todaysPendingConfirmed = todaysOrders.filter((o) => o.status === "Pending" || o.status === "Confirmed").length;
+  const todaysDispatched = todaysOrders.filter((o) => o.status === "Dispatched").length;
 
   const recent = [...orders].sort((a, b) => b.order_date.localeCompare(a.order_date)).slice(0, 3);
 
@@ -92,9 +98,9 @@ const AdminHome = ({ adminName, orders = [], onNewOrder, onOrderList }) => {
               <div className="summary-icon green">
                 <ShoppingCart size={15} />
               </div>
-              <span className="summary-label">Total Orders</span>
+              <span className="summary-label">Today's Booked Orders</span>
             </div>
-            <span className="summary-value">{total}</span>
+            <span className="summary-value">{todaysBooked}</span>
           </div>
 
           <div className="summary-row">
@@ -102,11 +108,9 @@ const AdminHome = ({ adminName, orders = [], onNewOrder, onOrderList }) => {
               <div className="summary-icon orange">
                 <Clock size={15} />
               </div>
-              <span className="summary-label">Pending / Confirmed</span>
+              <span className="summary-label">Today's Pending / Confirmed</span>
             </div>
-            <span className="summary-value">
-              {pending} / {confirmed}
-            </span>
+            <span className="summary-value">{todaysPendingConfirmed}</span>
           </div>
 
           <div className="summary-row">
@@ -114,9 +118,9 @@ const AdminHome = ({ adminName, orders = [], onNewOrder, onOrderList }) => {
               <div className="summary-icon blue">
                 <Truck size={15} />
               </div>
-              <span className="summary-label">Dispatched</span>
+              <span className="summary-label">Today's Dispatched</span>
             </div>
-            <span className="summary-value">{dispatched}</span>
+            <span className="summary-value">{todaysDispatched}</span>
           </div>
         </div>
       </div>

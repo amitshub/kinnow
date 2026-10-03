@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Search, MapPin, Package, Building2, Check, Clock, X, MessageCircle, Truck } from "lucide-react";
+import { Search, MapPin, Package, Building2, Check, Clock, X, MessageCircle, Truck, Pencil, Trash2 } from "lucide-react";
 import ChallanFormSheet from "../components/ChallanFormSheet";
 
 function totalCrates(order) {
@@ -10,7 +10,17 @@ function StatusBadge({ status }) {
   return <span className={`admin-order-badge badge-${status.toLowerCase()}`}>{status}</span>;
 }
 
-export default function AdminOrdersView({ orders, onStatusChange, onSaveChallan, onWhatsApp }) {
+export default function AdminOrdersView({
+  orders,
+  onStatusChange,
+  onSaveChallan,
+  onWhatsApp,
+  isAdmin,
+  onWhatsAppPackhouse,
+  onWhatsAppCustomer,
+  onEditOrder,
+  onDeleteOrder,
+}) {
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -41,6 +51,17 @@ export default function AdminOrdersView({ orders, onStatusChange, onSaveChallan,
   async function handleSaveChallan(id, payload) {
     await onSaveChallan(id, payload);
     setChallanOrder(null);
+    setSelectedOrder(null);
+  }
+
+  function handleEdit(order) {
+    setSelectedOrder(null);
+    onEditOrder(order);
+  }
+
+  function handleDelete(order) {
+    if (!window.confirm(`Delete order ${order.code}? This can't be undone.`)) return;
+    onDeleteOrder(order.id);
     setSelectedOrder(null);
   }
 
@@ -94,6 +115,7 @@ export default function AdminOrdersView({ orders, onStatusChange, onSaveChallan,
                     <div className="admin-order-item" key={index}>
                       <span>
                         <strong>{item.brand}</strong> {item.variety} · {item.quality}
+                        {item.rate ? ` · ₹${item.rate}` : ""}
                       </span>
                       <strong>{item.qty} cr</strong>
                     </div>
@@ -104,6 +126,7 @@ export default function AdminOrdersView({ orders, onStatusChange, onSaveChallan,
                   <span>
                     <Package size={14} />
                     {totalCrates(order)} crates
+                    {order.truck_tonnage ? ` · ${order.truck_tonnage} MT` : ""}
                   </span>
                   <span>
                     <Building2 size={13} />
@@ -123,6 +146,11 @@ export default function AdminOrdersView({ orders, onStatusChange, onSaveChallan,
           onStatusChange={handleStatusChange}
           onWhatsApp={onWhatsApp}
           onOpenChallan={() => setChallanOrder(selectedOrder)}
+          isAdmin={isAdmin}
+          onWhatsAppPackhouse={onWhatsAppPackhouse}
+          onWhatsAppCustomer={onWhatsAppCustomer}
+          onEdit={() => handleEdit(selectedOrder)}
+          onDelete={() => handleDelete(selectedOrder)}
         />
       )}
 
@@ -136,8 +164,20 @@ export default function AdminOrdersView({ orders, onStatusChange, onSaveChallan,
   );
 }
 
-function OrderDetailSheet({ order, onClose, onStatusChange, onWhatsApp, onOpenChallan }) {
+function OrderDetailSheet({
+  order,
+  onClose,
+  onStatusChange,
+  onWhatsApp,
+  onOpenChallan,
+  isAdmin,
+  onWhatsAppPackhouse,
+  onWhatsAppCustomer,
+  onEdit,
+  onDelete,
+}) {
   const hasChallan = !!order.truck;
+  const isPending = order.status === "Pending";
 
   return (
     <div className="admin-order-sheet-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -164,6 +204,7 @@ function OrderDetailSheet({ order, onClose, onStatusChange, onWhatsApp, onOpenCh
             )}
             <DetailRow label="City" value={order.customer.city} />
             <DetailRow label="Packhouse" value={order.packhouse.name} />
+            {order.truck_tonnage != null && <DetailRow label="Truck Tonnage" value={`${order.truck_tonnage} MT`} />}
             {order.remarks && <DetailRow label="Remarks" value={order.remarks} />}
           </div>
 
@@ -172,7 +213,11 @@ function OrderDetailSheet({ order, onClose, onStatusChange, onWhatsApp, onOpenCh
               Items <span>{totalCrates(order)} crates total</span>
             </div>
             {order.items.map((item, index) => (
-              <DetailRow key={index} label={`${item.brand} ${item.variety} · ${item.quality}`} value={`${item.qty} crates`} />
+              <DetailRow
+                key={index}
+                label={`${item.brand} ${item.variety} · ${item.quality}`}
+                value={item.rate ? `${item.qty} crates @ ₹${item.rate}` : `${item.qty} crates`}
+              />
             ))}
           </div>
 
@@ -224,13 +269,35 @@ function OrderDetailSheet({ order, onClose, onStatusChange, onWhatsApp, onOpenCh
             </div>
           )}
 
+          {isAdmin && isPending && (
+            <div className="admin-order-actions">
+              <button className="admin-confirm-btn" onClick={onEdit}>
+                <Pencil size={16} /> Edit Order
+              </button>
+              <button className="admin-pending-btn" onClick={onDelete}>
+                <Trash2 size={16} /> Delete Order
+              </button>
+            </div>
+          )}
+
           <button className="admin-whatsapp-btn" style={{ marginBottom: 10 }} onClick={onOpenChallan}>
             <Truck size={17} /> {hasChallan ? "Edit Dispatch Details" : "Enter Dispatch Details"}
           </button>
 
-          <button className="admin-whatsapp-btn" onClick={() => onWhatsApp(order)}>
-            <MessageCircle size={17} /> Resend WhatsApp
-          </button>
+          {isAdmin ? (
+            <>
+              <button className="admin-whatsapp-btn" style={{ marginBottom: 10 }} onClick={() => onWhatsAppPackhouse(order)}>
+                <MessageCircle size={17} /> Resend WhatsApp to Packhouse
+              </button>
+              <button className="admin-whatsapp-btn" onClick={() => onWhatsAppCustomer(order)}>
+                <MessageCircle size={17} /> Resend WhatsApp to Customer
+              </button>
+            </>
+          ) : (
+            <button className="admin-whatsapp-btn" onClick={() => onWhatsApp(order)}>
+              <MessageCircle size={17} /> Resend WhatsApp
+            </button>
+          )}
         </div>
       </div>
     </div>

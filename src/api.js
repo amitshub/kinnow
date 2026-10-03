@@ -179,6 +179,12 @@ export const api = {
   updateOrderChallan(id, payload) {
     return request(`/orders/${id}/challan`, { method: "PATCH", body: payload });
   },
+  updateOrder(id, payload, packhouseId) {
+    return request(`/orders/${id}${qs({ packhouse_id: packhouseId })}`, { method: "PUT", body: payload });
+  },
+  deleteOrder(id) {
+    return request(`/orders/${id}`, { method: "DELETE" });
+  },
 
   // ---- Catalog: brands / varieties / qualities ----
   // Read-only from the app's perspective — new values are added directly

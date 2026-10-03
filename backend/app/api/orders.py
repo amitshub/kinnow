@@ -64,12 +64,22 @@ def create_order(
         order_date=payload.order_date,
         status=OrderStatus.pending,
         remarks=payload.remarks,
+        truck_tonnage=payload.truck_tonnage,
     )
     db.add(order)
     db.flush()  # get order.id for items
 
     for item in payload.items:
-        db.add(OrderItem(order_id=order.id, brand=item.brand, variety=item.variety, quality=item.quality, qty=item.qty))
+        db.add(
+            OrderItem(
+                order_id=order.id,
+                brand=item.brand,
+                variety=item.variety,
+                quality=item.quality,
+                qty=item.qty,
+                rate=item.rate,
+            )
+        )
 
     db.commit()
     db.refresh(order)
@@ -77,6 +87,71 @@ def create_order(
     background_tasks.add_task(send_order_assigned_notification, order.id)
 
     return order
+
+
+@router.put("/{order_id}", response_model=OrderOut)
+def update_order(
+    order_id: int,
+    payload: OrderCreate,
+    packhouse_id: int,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    """Admins can fully edit an order (including reassigning its packhouse)
+    only while it's still Pending."""
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order.status != OrderStatus.pending:
+        raise HTTPException(status_code=400, detail="Only pending orders can be edited")
+
+    if not payload.items:
+        raise HTTPException(status_code=400, detail="Add at least one item")
+
+    customer = db.query(Customer).filter(Customer.id == payload.customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    order.customer_id = payload.customer_id
+    order.packhouse_id = packhouse_id
+    order.order_date = payload.order_date
+    order.remarks = payload.remarks
+    order.truck_tonnage = payload.truck_tonnage
+
+    db.query(OrderItem).filter(OrderItem.order_id == order.id).delete()
+    for item in payload.items:
+        db.add(
+            OrderItem(
+                order_id=order.id,
+                brand=item.brand,
+                variety=item.variety,
+                quality=item.quality,
+                qty=item.qty,
+                rate=item.rate,
+            )
+        )
+
+    db.commit()
+    db.refresh(order)
+    return order
+
+
+@router.delete("/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_order(
+    order_id: int,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    """Admins can delete an order only while it's still Pending."""
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order.status != OrderStatus.pending:
+        raise HTTPException(status_code=400, detail="Only pending orders can be deleted")
+
+    db.delete(order)
+    db.commit()
+    return None
 
 
 @router.patch("/{order_id}/status", response_model=OrderOut)
