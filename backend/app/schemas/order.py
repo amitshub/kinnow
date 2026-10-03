@@ -33,6 +33,7 @@ class ChallanUpdate(BaseModel):
     transporter: str | None = None
     weight: float | None = None
     freight: float | None = None
+    advance: float | None = None
     inam: float | None = None
     to_pay: float | None = None
     del_date: date | None = None
@@ -65,6 +66,7 @@ class OrderOut(BaseModel):
     transporter: str | None
     weight: float | None
     freight: float | None
+    advance: float | None
     inam: float | None
     to_pay: float | None
     del_date: date | None

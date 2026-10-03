@@ -33,6 +33,7 @@ class Order(Base):
     transporter = Column(String(120), nullable=True)
     weight = Column(Float, nullable=True)
     freight = Column(Float, nullable=True)
+    advance = Column(Float, nullable=True)
     inam = Column(Float, nullable=True)
     to_pay = Column(Float, nullable=True)
     del_date = Column(Date, nullable=True)

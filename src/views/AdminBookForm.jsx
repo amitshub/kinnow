@@ -59,8 +59,11 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, ed
   const customerName = customerMode === "existing" ? selectedExisting?.name : newName;
   const packhouseName = packhouses.find((p) => p.id === Number(packhouseId))?.name || "";
 
-  const itemLines = items
+  const customerItemLines = items
     .map((item) => `• ${item.brand} ${item.variety} – ${item.quality} – ${item.qty} crates${item.rate ? ` @ ₹${item.rate}` : ""}`)
+    .join("\n");
+  const packhouseItemLines = items
+    .map((item) => `• ${item.brand} ${item.variety} – ${item.quality} – ${item.qty} crates`)
     .join("\n");
 
   async function bookOrder() {
@@ -335,7 +338,7 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, ed
                   {"\n\n"}
                   Your order has been booked:
                   {"\n"}
-                  {itemLines}
+                  {customerItemLines}
                   {"\n\n"}
                   Total: {totalCrates} crates
                   {"\n\n"}
@@ -363,7 +366,7 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, ed
                   {"\n"}
                   Items:
                   {"\n"}
-                  {itemLines}
+                  {packhouseItemLines}
                   {truckTonnage ? `\nTonnage: ${truckTonnage} MT` : ""}
                   {"\n\n"}
                   Total: {totalCrates} crates

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
-import { Search, MapPin, Package, Building2, Check, Clock, X, MessageCircle, Truck, Pencil, Trash2 } from "lucide-react";
+import { Search, MapPin, Package, Building2, Check, Clock, X, MessageCircle, Truck, Pencil, Trash2, ShoppingCart } from "lucide-react";
 import ChallanFormSheet from "../components/ChallanFormSheet";
+import { todayStr } from "../utils";
 
 function totalCrates(order) {
   return order.items.reduce((total, item) => total + Number(item.qty || 0), 0);
@@ -14,20 +15,31 @@ export default function AdminOrdersView({
   orders,
   onStatusChange,
   onSaveChallan,
+  onUploadFile,
   onWhatsApp,
   isAdmin,
   onWhatsAppPackhouse,
   onWhatsAppCustomer,
   onEditOrder,
   onDeleteOrder,
+  presetStatusFilter,
+  presetTodayOnly,
 }) {
-  const [filter, setFilter] = useState("All");
+  const [filter, setFilter] = useState(presetStatusFilter || "All");
+  const [todayOnly, setTodayOnly] = useState(!!presetTodayOnly);
   const [search, setSearch] = useState("");
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [challanOrder, setChallanOrder] = useState(null);
 
+  const today = todayStr();
+  const todaysOrders = useMemo(() => orders.filter((o) => o.order_date === today), [orders, today]);
+  const todaysBooked = todaysOrders.length;
+  const todaysPendingConfirmed = todaysOrders.filter((o) => o.status === "Pending" || o.status === "Confirmed").length;
+  const todaysDispatched = todaysOrders.filter((o) => o.status === "Dispatched").length;
+
   const filteredOrders = useMemo(() => {
     let list = orders;
+    if (todayOnly) list = list.filter((o) => o.order_date === today);
     if (filter !== "All") {
       list = list.filter((order) => order.status === filter);
     }
@@ -41,7 +53,7 @@ export default function AdminOrdersView({
       );
     }
     return list;
-  }, [orders, filter, search]);
+  }, [orders, filter, search, todayOnly, today]);
 
   function handleStatusChange(id, status) {
     onStatusChange(id, status);
@@ -65,9 +77,45 @@ export default function AdminOrdersView({
     setSelectedOrder(null);
   }
 
+  function clickTodaysBooked() {
+    setFilter("All");
+    setTodayOnly(true);
+  }
+
+  function clickTodaysDispatched() {
+    setFilter("Dispatched");
+    setTodayOnly(true);
+  }
+
   return (
     <>
       <div className="admin-orders-page">
+        <div className="home-stats" style={{ marginBottom: 14 }}>
+          <button type="button" className="home-stat-card" style={{ border: "none", cursor: "pointer" }} onClick={clickTodaysBooked}>
+            <div className="home-stat-icon green">
+              <ShoppingCart size={17} />
+            </div>
+            <div className="home-stat-number">{String(todaysBooked).padStart(2, "0")}</div>
+            <div className="home-stat-label">Today's Booked</div>
+          </button>
+
+          <div className="home-stat-card">
+            <div className="home-stat-icon orange">
+              <Clock size={17} />
+            </div>
+            <div className="home-stat-number">{String(todaysPendingConfirmed).padStart(2, "0")}</div>
+            <div className="home-stat-label">Pending/Confirmed</div>
+          </div>
+
+          <button type="button" className="home-stat-card" style={{ border: "none", cursor: "pointer" }} onClick={clickTodaysDispatched}>
+            <div className="home-stat-icon blue">
+              <Truck size={17} />
+            </div>
+            <div className="home-stat-number">{String(todaysDispatched).padStart(2, "0")}</div>
+            <div className="home-stat-label">Today's Dispatched</div>
+          </button>
+        </div>
+
         <div className="admin-order-search">
           <Search size={18} />
           <input
@@ -80,10 +128,21 @@ export default function AdminOrdersView({
 
         <div className="admin-order-filters">
           {["All", "Pending", "Confirmed", "Dispatched"].map((item) => (
-            <button key={item} className={filter === item ? "active" : ""} onClick={() => setFilter(item)}>
+            <button
+              key={item}
+              className={filter === item ? "active" : ""}
+              onClick={() => {
+                setFilter(item);
+              }}
+            >
               {item}
             </button>
           ))}
+          {todayOnly && (
+            <button className="active" onClick={() => setTodayOnly(false)} style={{ background: "#9333ea", borderColor: "#9333ea" }}>
+              Today only ×
+            </button>
+          )}
         </div>
 
         <div className="admin-orders-list">
@@ -159,6 +218,7 @@ export default function AdminOrdersView({
         order={challanOrder}
         onClose={() => setChallanOrder(null)}
         onSave={handleSaveChallan}
+        onUploadFile={onUploadFile}
       />
     </>
   );
@@ -230,7 +290,7 @@ function OrderDetailSheet({
                 <DetailRow label="Transporter" value={order.transporter} />
                 <DetailRow label="Weight" value={order.weight != null ? `${Number(order.weight).toLocaleString("en-IN")} kg` : "—"} />
                 <DetailRow label="Freight" value={order.freight != null ? `₹${Number(order.freight).toLocaleString("en-IN")}` : "—"} />
-                <DetailRow label="INAM" value={order.inam != null ? `₹${Number(order.inam).toLocaleString("en-IN")}` : "—"} />
+                <DetailRow label="Advance" value={order.advance != null ? `₹${Number(order.advance).toLocaleString("en-IN")}` : "—"} />
                 <DetailRow
                   label="To Pay"
                   value={
@@ -241,6 +301,7 @@ function OrderDetailSheet({
                     )
                   }
                 />
+                <DetailRow label="INAM" value={order.inam != null ? `₹${Number(order.inam).toLocaleString("en-IN")}` : "—"} />
                 <DetailRow label="Delivery" value={`${order.del_date || ""} ${order.del_time || ""}`.trim() || "—"} />
               </div>
 
@@ -248,11 +309,27 @@ function OrderDetailSheet({
                 <div className="admin-detail-title">Documents</div>
                 <DetailRow
                   label="Bilty"
-                  value={order.bilty ? <span className="admin-document-ok">✓ Uploaded</span> : <span className="admin-document-pending">Pending</span>}
+                  value={
+                    order.bilty ? (
+                      <a href={order.bilty} target="_blank" rel="noreferrer" className="admin-document-ok">
+                        ✓ View
+                      </a>
+                    ) : (
+                      <span className="admin-document-pending">Pending</span>
+                    )
+                  }
                 />
                 <DetailRow
                   label="Kaanta Parchi"
-                  value={order.kaanta ? <span className="admin-document-ok">✓ Uploaded</span> : <span className="admin-document-pending">Pending</span>}
+                  value={
+                    order.kaanta ? (
+                      <a href={order.kaanta} target="_blank" rel="noreferrer" className="admin-document-ok">
+                        ✓ View
+                      </a>
+                    ) : (
+                      <span className="admin-document-pending">Pending</span>
+                    )
+                  }
                 />
               </div>
             </>
@@ -280,11 +357,11 @@ function OrderDetailSheet({
             </div>
           )}
 
-          <button className="admin-whatsapp-btn" style={{ marginBottom: 10 }} onClick={onOpenChallan}>
+          <button className="admin-whatsapp-btn" style={{ marginBottom: isAdmin ? 10 : 0 }} onClick={onOpenChallan}>
             <Truck size={17} /> {hasChallan ? "Edit Dispatch Details" : "Enter Dispatch Details"}
           </button>
 
-          {isAdmin ? (
+          {isAdmin && (
             <>
               <button className="admin-whatsapp-btn" style={{ marginBottom: 10 }} onClick={() => onWhatsAppPackhouse(order)}>
                 <MessageCircle size={17} /> Resend WhatsApp to Packhouse
@@ -293,10 +370,6 @@ function OrderDetailSheet({
                 <MessageCircle size={17} /> Resend WhatsApp to Customer
               </button>
             </>
-          ) : (
-            <button className="admin-whatsapp-btn" onClick={() => onWhatsApp(order)}>
-              <MessageCircle size={17} /> Resend WhatsApp
-            </button>
           )}
         </div>
       </div>

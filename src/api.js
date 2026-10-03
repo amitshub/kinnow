@@ -185,6 +185,11 @@ export const api = {
   deleteOrder(id) {
     return request(`/orders/${id}`, { method: "DELETE" });
   },
+  uploadOrderFile(orderId, field, file) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return request(`/orders/${orderId}/upload?field=${field}`, { method: "POST", body: formData, isForm: true });
+  },
 
   // ---- Catalog: brands / varieties / qualities ----
   // Read-only from the app's perspective — new values are added directly

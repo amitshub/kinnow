@@ -170,11 +170,13 @@ function AdminApp({ session, onLogout, toast, showToast }) {
   const [varieties, setVarieties] = useState([]);
   const [qualities, setQualities] = useState([]);
   const [bookEditOrder, setBookEditOrder] = useState(null);
+  const [orderFilterPreset, setOrderFilterPreset] = useState(null); // { status, todayOnly } | null
   const [version, setVersion] = useState(0);
   const bump = () => setVersion((v) => v + 1);
 
   function handleTabChange(tab) {
     if (tab !== "book") setBookEditOrder(null);
+    setOrderFilterPreset(null);
     setActiveTab(tab);
   }
 
@@ -299,15 +301,29 @@ function AdminApp({ session, onLogout, toast, showToast }) {
     }
   }
 
+  async function handleUploadOrderFile(orderId, field, file) {
+    const updated = await api.uploadOrderFile(orderId, field, file);
+    bump();
+    return updated;
+  }
+
+  function handleClickBooked() {
+    setOrderFilterPreset({ status: "All", todayOnly: true });
+    setActiveTab("orders");
+  }
+
+  function handleClickDispatched() {
+    setOrderFilterPreset({ status: "Dispatched", todayOnly: true });
+    setActiveTab("orders");
+  }
+
   function handleWhatsAppPackhouse(order) {
     const staff = users.find((u) => u.role === "Packhouse User" && u.packhouseId === order.packhouse.id);
     if (!staff?.mobile) {
       showToast("No staff mobile number found for this packhouse");
       return;
     }
-    const lines = order.items
-      .map((i) => `• ${i.brand} ${i.variety} – ${i.quality} – ${i.qty} crates${i.rate ? ` @ ₹${i.rate}` : ""}`)
-      .join("\n");
+    const lines = order.items.map((i) => `• ${i.brand} ${i.variety} – ${i.quality} – ${i.qty} crates`).join("\n");
     const tonnageLine = order.truck_tonnage ? `\nTonnage: ${order.truck_tonnage} MT` : "";
     const totalCr = order.items.reduce((s, i) => s + Number(i.qty || 0), 0);
     const text = `*New Order Alert – ${order.packhouse.name}*\n\nCustomer: ${order.customer.name}\nItems:\n${lines}${tonnageLine}\n\nTotal: ${totalCr} crates\n\nPlease process accordingly.`;
@@ -441,6 +457,8 @@ function AdminApp({ session, onLogout, toast, showToast }) {
                   setActiveTab("book");
                 }}
                 onOrderList={() => setActiveTab("orders")}
+                onClickBooked={handleClickBooked}
+                onClickDispatched={handleClickDispatched}
               />
             )}
 
@@ -449,11 +467,14 @@ function AdminApp({ session, onLogout, toast, showToast }) {
                 orders={orders}
                 onStatusChange={handleStatusChange}
                 onSaveChallan={handleSaveChallan}
+                onUploadFile={handleUploadOrderFile}
                 isAdmin
                 onWhatsAppPackhouse={handleWhatsAppPackhouse}
                 onWhatsAppCustomer={handleWhatsAppCustomer}
                 onEditOrder={handleEditOrder}
                 onDeleteOrder={handleDeleteOrder}
+                presetStatusFilter={orderFilterPreset?.status}
+                presetTodayOnly={orderFilterPreset?.todayOnly}
               />
             )}
 
@@ -725,6 +746,12 @@ function WorkerApp({ session, onLogout, toast, showToast }) {
 
   /* ---------------- ORDERS ---------------- */
 
+  async function handleUploadOrderFile(orderId, field, file) {
+    const updated = await api.uploadOrderFile(orderId, field, file);
+    bump();
+    return updated;
+  }
+
   async function handleOrderStatusChange(id, status) {
     try {
       await api.updateOrderStatus(id, status);
@@ -743,17 +770,6 @@ function WorkerApp({ session, onLogout, toast, showToast }) {
     } catch (e) {
       showToast(e.message);
     }
-  }
-
-  function handleWhatsApp(order) {
-    if (!order.customer.mobile) {
-      showToast("No mobile number on file for this customer");
-      return;
-    }
-    const lines = order.items.map((i) => `• ${i.brand} ${i.variety} – ${i.quality} – ${i.qty} crates`).join("\n");
-    const text = `Dear ${order.customer.name},\n\nYour order ${order.code} status: ${order.status}.\n${lines}\n\nThank you.`;
-    const phone = order.customer.mobile.replace(/\D/g, "");
-    window.open(`https://wa.me/91${phone}?text=${encodeURIComponent(text)}`, "_blank");
   }
 
   /* ---------------- UI ---------------- */
@@ -789,7 +805,7 @@ function WorkerApp({ session, onLogout, toast, showToast }) {
                 orders={orders}
                 onStatusChange={handleOrderStatusChange}
                 onSaveChallan={handleSaveChallan}
-                onWhatsApp={handleWhatsApp}
+                onUploadFile={handleUploadOrderFile}
                 isAdmin={false}
               />
             )}

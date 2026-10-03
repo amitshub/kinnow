@@ -1,4 +1,6 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+import base64
+
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_user, get_db, require_admin
@@ -188,6 +190,41 @@ def update_challan(
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(order, field, value)
     order.status = OrderStatus.dispatched
+
+    db.commit()
+    db.refresh(order)
+    return order
+
+
+MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MB
+ALLOWED_UPLOAD_TYPES = {"image/jpeg", "image/png", "image/webp", "application/pdf"}
+
+
+@router.post("/{order_id}/upload", response_model=OrderOut)
+async def upload_order_file(
+    order_id: int,
+    field: str = Query(..., pattern="^(bilty|kaanta)$"),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Upload a photo (camera or gallery) or PDF for the bilty/kaanta parchi.
+    Stored as a base64 data URI directly on the order row — no separate file
+    storage is configured, and this keeps things simple for modest file sizes."""
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    _ensure_order_access(current_user, order)
+
+    if file.content_type not in ALLOWED_UPLOAD_TYPES:
+        raise HTTPException(status_code=400, detail="Only JPEG/PNG/WEBP images or PDF files are allowed")
+
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File too large (max 5MB)")
+
+    data_uri = f"data:{file.content_type};base64,{base64.b64encode(content).decode()}"
+    setattr(order, field, data_uri)
 
     db.commit()
     db.refresh(order)

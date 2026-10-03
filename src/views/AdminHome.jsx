@@ -6,7 +6,7 @@ function totalCrates(order) {
   return order.items.reduce((total, item) => total + Number(item.qty || 0), 0);
 }
 
-const AdminHome = ({ adminName, orders = [], onNewOrder, onOrderList }) => {
+const AdminHome = ({ adminName, orders = [], onNewOrder, onOrderList, onClickBooked, onClickDispatched }) => {
   const total = orders.length;
   const pending = orders.filter((o) => o.status === "Pending").length;
   const dispatched = orders.filter((o) => o.status === "Dispatched").length;
@@ -93,7 +93,7 @@ const AdminHome = ({ adminName, orders = [], onNewOrder, onOrderList }) => {
         </div>
 
         <div className="summary-card">
-          <div className="summary-row">
+          <button type="button" className="summary-row" style={{ width: "100%", border: "none", background: "none", cursor: "pointer" }} onClick={onClickBooked}>
             <div className="summary-left">
               <div className="summary-icon green">
                 <ShoppingCart size={15} />
@@ -101,7 +101,7 @@ const AdminHome = ({ adminName, orders = [], onNewOrder, onOrderList }) => {
               <span className="summary-label">Today's Booked Orders</span>
             </div>
             <span className="summary-value">{todaysBooked}</span>
-          </div>
+          </button>
 
           <div className="summary-row">
             <div className="summary-left">
@@ -113,7 +113,7 @@ const AdminHome = ({ adminName, orders = [], onNewOrder, onOrderList }) => {
             <span className="summary-value">{todaysPendingConfirmed}</span>
           </div>
 
-          <div className="summary-row">
+          <button type="button" className="summary-row" style={{ width: "100%", border: "none", background: "none", cursor: "pointer" }} onClick={onClickDispatched}>
             <div className="summary-left">
               <div className="summary-icon blue">
                 <Truck size={15} />
@@ -121,7 +121,7 @@ const AdminHome = ({ adminName, orders = [], onNewOrder, onOrderList }) => {
               <span className="summary-label">Today's Dispatched</span>
             </div>
             <span className="summary-value">{todaysDispatched}</span>
-          </div>
+          </button>
         </div>
       </div>
 
