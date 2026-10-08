@@ -39,6 +39,7 @@ class ChallanUpdate(BaseModel):
     to_pay: float | None = None
     del_date: date | None = None
     del_time: time | None = None
+    insurance: bool | None = None
 
 
 class StatusUpdate(BaseModel):
@@ -73,6 +74,8 @@ class OrderOut(BaseModel):
     to_pay: float | None
     del_date: date | None
     del_time: time | None
+    insurance: bool | None
+    dispatch_date: date | None
     bilty: str | None
     kaanta: str | None
     items: list[OrderItemOut]

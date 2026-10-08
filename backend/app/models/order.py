@@ -1,6 +1,6 @@
 import enum
 
-from sqlalchemy import Column, Integer, String, Float, Date, Time, ForeignKey, Enum, Text
+from sqlalchemy import Boolean, Column, Integer, String, Float, Date, Time, ForeignKey, Enum, Text
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -39,6 +39,8 @@ class Order(Base):
     to_pay = Column(Float, nullable=True)
     del_date = Column(Date, nullable=True)
     del_time = Column(Time, nullable=True)
+    insurance = Column(Boolean, nullable=True)  # Yes/No, shown on the challan
+    dispatch_date = Column(Date, nullable=True)  # set the first time dispatch details are saved
 
     # Document references (upload flow not built — plain text/URL placeholders).
     bilty = Column(Text, nullable=True)

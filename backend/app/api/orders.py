@@ -1,14 +1,16 @@
 import base64
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_user, get_db, require_admin
+from app.core.timeutils import today_ist
 from app.crud.codes import next_code
 from app.models.customer import Customer
 from app.models.order import Order, OrderItem, OrderStatus
 from app.models.user import User, UserRole
 from app.schemas.order import ChallanUpdate, OrderCreate, OrderOut, StatusUpdate
+from app.services.challan_pdf import build_challan_pdf
 from app.services.whatsapp import send_order_assigned_notification, send_order_dispatched_notification
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -197,6 +199,8 @@ def update_challan(
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(order, field, value)
     order.status = OrderStatus.dispatched
+    if order.dispatch_date is None:
+        order.dispatch_date = today_ist()  # the challan date; kept even if details are edited later
 
     db.commit()
     db.refresh(order)
@@ -205,6 +209,37 @@ def update_challan(
         background_tasks.add_task(send_order_dispatched_notification, order.id)
 
     return order
+
+
+@router.get("/{order_id}/challan-pdf")
+def challan_pdf(
+    order_id: int,
+    mode: str = Query("letterhead", pattern="^(letterhead|print)$"),
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    """Dispatch challan as an A4 PDF (admin only).
+
+    mode=letterhead -> includes the letterhead artwork (for downloading)
+    mode=print      -> no artwork, with 7.5 cm top / 6.5 cm bottom margins, for
+                       printing on paper that already has the letterhead."""
+    order = (
+        db.query(Order)
+        .options(joinedload(Order.items), joinedload(Order.customer), joinedload(Order.packhouse))
+        .filter(Order.id == order_id)
+        .first()
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if not order.truck:
+        raise HTTPException(status_code=400, detail="Dispatch details have not been entered for this order yet")
+
+    pdf = build_challan_pdf(order, letterhead=(mode == "letterhead"))
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="Challan-{order.code}.pdf"'},
+    )
 
 
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MB
