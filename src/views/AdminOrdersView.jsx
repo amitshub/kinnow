@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Search, MapPin, Package, Building2, Check, Clock, X, MessageCircle, Truck, Pencil, Trash2, ShoppingCart } from "lucide-react";
+import { Search, MapPin, Package, Building2, Check, Clock, X, MessageCircle, Truck, Pencil, Trash2, ShoppingCart, Calendar } from "lucide-react";
 import ChallanFormSheet from "../components/ChallanFormSheet";
 import { todayStr } from "../utils";
 
@@ -25,21 +25,24 @@ export default function AdminOrdersView({
   presetStatusFilter,
   presetTodayOnly,
 }) {
+  const today = todayStr();
   const [filter, setFilter] = useState(presetStatusFilter || "All");
-  const [todayOnly, setTodayOnly] = useState(!!presetTodayOnly);
+  const [selectedDate, setSelectedDate] = useState(today);
+  const [dateOnly, setDateOnly] = useState(!!presetTodayOnly);
   const [search, setSearch] = useState("");
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [challanOrder, setChallanOrder] = useState(null);
 
-  const today = todayStr();
-  const todaysOrders = useMemo(() => orders.filter((o) => o.order_date === today), [orders, today]);
-  const todaysBooked = todaysOrders.length;
-  const todaysPendingConfirmed = todaysOrders.filter((o) => o.status === "Pending" || o.status === "Confirmed").length;
-  const todaysDispatched = todaysOrders.filter((o) => o.status === "Dispatched").length;
+  const isToday = selectedDate === today;
+  const dayLabel = isToday ? "Today's " : "";
+  const dayOrders = useMemo(() => orders.filter((o) => o.order_date === selectedDate), [orders, selectedDate]);
+  const dayBooked = dayOrders.length;
+  const dayPendingConfirmed = dayOrders.filter((o) => o.status === "Pending" || o.status === "Confirmed").length;
+  const dayDispatched = dayOrders.filter((o) => o.status === "Dispatched").length;
 
   const filteredOrders = useMemo(() => {
     let list = orders;
-    if (todayOnly) list = list.filter((o) => o.order_date === today);
+    if (dateOnly) list = list.filter((o) => o.order_date === selectedDate);
     if (filter !== "All") {
       list = list.filter((order) => order.status === filter);
     }
@@ -53,7 +56,7 @@ export default function AdminOrdersView({
       );
     }
     return list;
-  }, [orders, filter, search, todayOnly, today]);
+  }, [orders, filter, search, dateOnly, selectedDate]);
 
   function handleStatusChange(id, status) {
     onStatusChange(id, status);
@@ -77,42 +80,62 @@ export default function AdminOrdersView({
     setSelectedOrder(null);
   }
 
-  function clickTodaysBooked() {
+  function clickBooked() {
     setFilter("All");
-    setTodayOnly(true);
+    setDateOnly(true);
   }
 
-  function clickTodaysDispatched() {
+  function clickDispatched() {
     setFilter("Dispatched");
-    setTodayOnly(true);
+    setDateOnly(true);
   }
 
   return (
     <>
       <div className="admin-orders-page">
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          <Calendar size={18} style={{ flexShrink: 0, color: "#6b7280" }} />
+          <input
+            type="date"
+            className="book-form-control"
+            style={{ flex: 1 }}
+            value={selectedDate}
+            onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+          />
+          {!isToday && (
+            <button
+              type="button"
+              onClick={() => setSelectedDate(today)}
+              style={{ border: "1px solid #d1d5db", background: "#fff", borderRadius: 20, padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+            >
+              Today
+            </button>
+          )}
+        </div>
+
         <div className="home-stats" style={{ marginBottom: 14 }}>
-          <button type="button" className="home-stat-card" style={{ border: "none", cursor: "pointer" }} onClick={clickTodaysBooked}>
+          <button type="button" className="home-stat-card" style={{ border: "none", cursor: "pointer" }} onClick={clickBooked}>
             <div className="home-stat-icon green">
               <ShoppingCart size={17} />
             </div>
-            <div className="home-stat-number">{String(todaysBooked).padStart(2, "0")}</div>
-            <div className="home-stat-label">Today's Booked</div>
+            <div className="home-stat-number">{String(dayBooked).padStart(2, "0")}</div>
+            <div className="home-stat-label">{dayLabel}Booked</div>
           </button>
 
           <div className="home-stat-card">
             <div className="home-stat-icon orange">
               <Clock size={17} />
             </div>
-            <div className="home-stat-number">{String(todaysPendingConfirmed).padStart(2, "0")}</div>
+            <div className="home-stat-number">{String(dayPendingConfirmed).padStart(2, "0")}</div>
             <div className="home-stat-label">Pending/Confirmed</div>
           </div>
 
-          <button type="button" className="home-stat-card" style={{ border: "none", cursor: "pointer" }} onClick={clickTodaysDispatched}>
+          <button type="button" className="home-stat-card" style={{ border: "none", cursor: "pointer" }} onClick={clickDispatched}>
             <div className="home-stat-icon blue">
               <Truck size={17} />
             </div>
-            <div className="home-stat-number">{String(todaysDispatched).padStart(2, "0")}</div>
-            <div className="home-stat-label">Today's Dispatched</div>
+            <div className="home-stat-number">{String(dayDispatched).padStart(2, "0")}</div>
+            <div className="home-stat-label">{dayLabel}Dispatched</div>
           </button>
         </div>
 
@@ -138,9 +161,9 @@ export default function AdminOrdersView({
               {item}
             </button>
           ))}
-          {todayOnly && (
-            <button className="active" onClick={() => setTodayOnly(false)} style={{ background: "#9333ea", borderColor: "#9333ea" }}>
-              Today only ×
+          {dateOnly && (
+            <button className="active" onClick={() => setDateOnly(false)} style={{ background: "#9333ea", borderColor: "#9333ea" }}>
+              {isToday ? "Today" : selectedDate} only ×
             </button>
           )}
         </div>
@@ -287,6 +310,7 @@ function OrderDetailSheet({
                 <div className="admin-detail-title">Dispatch Details</div>
                 <DetailRow label="Truck" value={order.truck} />
                 <DetailRow label="Driver" value={order.driver} />
+                <DetailRow label="Driver Mobile" value={order.driver_mobile || "—"} />
                 <DetailRow label="Transporter" value={order.transporter} />
                 <DetailRow label="Weight" value={order.weight != null ? `${Number(order.weight).toLocaleString("en-IN")} kg` : "—"} />
                 <DetailRow label="Freight" value={order.freight != null ? `₹${Number(order.freight).toLocaleString("en-IN")}` : "—"} />

@@ -7,10 +7,6 @@ function totalCrates(order) {
 }
 
 const AdminHome = ({ adminName, orders = [], onNewOrder, onOrderList, onClickBooked, onClickDispatched }) => {
-  const total = orders.length;
-  const pending = orders.filter((o) => o.status === "Pending").length;
-  const dispatched = orders.filter((o) => o.status === "Dispatched").length;
-
   const today = todayStr();
   const todaysOrders = orders.filter((o) => o.order_date === today);
   const todaysBooked = todaysOrders.length;
@@ -30,32 +26,6 @@ const AdminHome = ({ adminName, orders = [], onNewOrder, onOrderList, onClickBoo
         <div className="home-banner-title">Manage your orders easily</div>
         <div className="home-banner-text">
           Create orders, track dispatches and manage your customers from one place.
-        </div>
-      </div>
-
-      <div className="home-stats">
-        <div className="home-stat-card">
-          <div className="home-stat-icon green">
-            <ShoppingCart size={17} />
-          </div>
-          <div className="home-stat-number">{String(total).padStart(2, "0")}</div>
-          <div className="home-stat-label">Total Orders</div>
-        </div>
-
-        <div className="home-stat-card">
-          <div className="home-stat-icon orange">
-            <Clock size={17} />
-          </div>
-          <div className="home-stat-number">{String(pending).padStart(2, "0")}</div>
-          <div className="home-stat-label">Pending</div>
-        </div>
-
-        <div className="home-stat-card">
-          <div className="home-stat-icon blue">
-            <Truck size={17} />
-          </div>
-          <div className="home-stat-number">{String(dispatched).padStart(2, "0")}</div>
-          <div className="home-stat-label">Dispatched</div>
         </div>
       </div>
 

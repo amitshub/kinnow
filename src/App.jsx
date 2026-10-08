@@ -326,7 +326,8 @@ function AdminApp({ session, onLogout, toast, showToast }) {
     const lines = order.items.map((i) => `• ${i.brand} ${i.variety} – ${i.quality} – ${i.qty} crates`).join("\n");
     const tonnageLine = order.truck_tonnage ? `\nTonnage: ${order.truck_tonnage} MT` : "";
     const totalCr = order.items.reduce((s, i) => s + Number(i.qty || 0), 0);
-    const text = `*New Order Alert – ${order.packhouse.name}*\n\nCustomer: ${order.customer.name}\nItems:\n${lines}${tonnageLine}\n\nTotal: ${totalCr} crates\n\nPlease process accordingly.`;
+    const customerLabel = order.customer.city ? `${order.customer.name}, ${order.customer.city}` : order.customer.name;
+    const text = `*New Order Alert – ${order.packhouse.name}*\n\nCustomer: ${customerLabel}\nItems:\n${lines}${tonnageLine}\n\nTotal: ${totalCr} crates\n\nPlease process accordingly.`;
     const phone = staff.mobile.replace(/\D/g, "");
     window.open(`https://wa.me/91${phone}?text=${encodeURIComponent(text)}`, "_blank");
   }
@@ -541,7 +542,7 @@ function AdminApp({ session, onLogout, toast, showToast }) {
    ========================================================= */
 
 function WorkerApp({ session, onLogout, toast, showToast }) {
-  const [activeTab, setActiveTab] = useState("incoming");
+  const [activeTab, setActiveTab] = useState("orders");
   const [selectedDate, setSelectedDate] = useState(todayStr());
 
   const [growers, setGrowers] = useState([]);

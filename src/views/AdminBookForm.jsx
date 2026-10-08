@@ -57,6 +57,8 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, ed
 
   const selectedExisting = customers.find((c) => c.id === Number(existingCustomerId));
   const customerName = customerMode === "existing" ? selectedExisting?.name : newName;
+  const customerCity = customerMode === "existing" ? selectedExisting?.city : newCity.trim();
+  const customerLabel = customerName && customerCity ? `${customerName}, ${customerCity}` : customerName;
   const packhouseName = packhouses.find((p) => p.id === Number(packhouseId))?.name || "";
 
   const customerItemLines = items
@@ -324,6 +326,9 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, ed
 
       <div className="book-card book-preview-card">
         <div className="book-card-body">
+          {/* Customer-confirmation preview disabled: the booking-time WhatsApp to the
+              customer is switched off for now (see backend services/whatsapp.py).
+              Restore this block together with that backend code if it is re-enabled.
           <div className="book-wa-box">
             <div className="book-wa-head">
               <MessageCircle size={16} />
@@ -347,8 +352,7 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, ed
               )}
             </div>
           </div>
-
-          <div className="book-preview-gap" />
+          */}
 
           <div className="book-packhouse-box">
             <div className="book-packhouse-head">
@@ -362,7 +366,7 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, ed
                 <>
                   *New Order Alert – {packhouseName}*
                   {"\n\n"}
-                  Customer: {customerName}
+                  Customer: {customerLabel}
                   {"\n"}
                   Items:
                   {"\n"}

@@ -5,6 +5,7 @@ function ChallanFormSheet({ open, order, onClose, onSave, onUploadFile }) {
   const [form, setForm] = useState(() => ({
     truck: order?.truck || "",
     driver: order?.driver || "",
+    driver_mobile: order?.driver_mobile || "",
     transporter: order?.transporter || "",
     weight: order?.weight ?? "",
     freight: order?.freight ?? "",
@@ -45,6 +46,7 @@ function ChallanFormSheet({ open, order, onClose, onSave, onUploadFile }) {
     await onSave(order.id, {
       truck: form.truck.trim(),
       driver: form.driver.trim() || null,
+      driver_mobile: form.driver_mobile.trim() || null,
       transporter: form.transporter.trim() || null,
       weight: form.weight === "" ? null : parseFloat(form.weight),
       freight: form.freight === "" ? null : parseFloat(form.freight),
@@ -79,6 +81,11 @@ function ChallanFormSheet({ open, order, onClose, onSave, onUploadFile }) {
           <div className="book-form-group">
             <label className="book-form-label">Driver Name</label>
             <input className="book-form-control" value={form.driver} onChange={(e) => setF("driver", e.target.value)} placeholder="e.g. Ahmad" />
+          </div>
+
+          <div className="book-form-group">
+            <label className="book-form-label">Driver Mobile</label>
+            <input className="book-form-control" type="tel" value={form.driver_mobile} onChange={(e) => setF("driver_mobile", e.target.value)} placeholder="e.g. 9XXXXXXXXX" />
           </div>
 
           <div className="book-form-group">

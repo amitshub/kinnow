@@ -9,7 +9,7 @@ from app.models.customer import Customer
 from app.models.order import Order, OrderItem, OrderStatus
 from app.models.user import User, UserRole
 from app.schemas.order import ChallanUpdate, OrderCreate, OrderOut, StatusUpdate
-from app.services.whatsapp import send_order_assigned_notification
+from app.services.whatsapp import send_order_assigned_notification, send_order_dispatched_notification
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -178,14 +178,21 @@ def update_status(
 def update_challan(
     order_id: int,
     payload: ChallanUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Fill in dispatch/challan details (packhouse staff do this). Also marks the order Dispatched."""
+    """Fill in dispatch/challan details (packhouse staff do this). Also marks the order Dispatched.
+
+    When a packhouse user dispatches an order for the first time, the admin is
+    notified on WhatsApp. (Not sent when an admin does it themselves, and not
+    re-sent when dispatch details are merely edited afterwards.)"""
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     _ensure_order_access(current_user, order)
+
+    was_dispatched = order.status == OrderStatus.dispatched
 
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(order, field, value)
@@ -193,6 +200,10 @@ def update_challan(
 
     db.commit()
     db.refresh(order)
+
+    if not was_dispatched and current_user.role != UserRole.admin:
+        background_tasks.add_task(send_order_dispatched_notification, order.id)
+
     return order
 
 

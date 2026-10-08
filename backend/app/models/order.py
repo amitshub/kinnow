@@ -30,6 +30,7 @@ class Order(Base):
     # Dispatch / challan details — filled in once the order ships.
     truck = Column(String(40), nullable=True)
     driver = Column(String(120), nullable=True)
+    driver_mobile = Column(String(15), nullable=True)
     transporter = Column(String(120), nullable=True)
     weight = Column(Float, nullable=True)
     freight = Column(Float, nullable=True)

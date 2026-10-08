@@ -30,6 +30,7 @@ class OrderCreate(BaseModel):
 class ChallanUpdate(BaseModel):
     truck: str | None = None
     driver: str | None = None
+    driver_mobile: str | None = None
     transporter: str | None = None
     weight: float | None = None
     freight: float | None = None
@@ -63,6 +64,7 @@ class OrderOut(BaseModel):
     truck_tonnage: float | None
     truck: str | None
     driver: str | None
+    driver_mobile: str | None
     transporter: str | None
     weight: float | None
     freight: float | None
