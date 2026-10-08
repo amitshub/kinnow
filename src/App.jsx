@@ -30,6 +30,7 @@ import AdminHome from "./views/AdminHome";
 
 import { api, setToken } from "./api";
 import { todayStr, shiftDate } from "./utils";
+import { downloadChallanPdf, printChallanPdf } from "./challanPdf";
 
 /* =====================================================
    API <-> UI SHAPE MAPPERS
@@ -307,6 +308,23 @@ function AdminApp({ session, onLogout, toast, showToast }) {
     return updated;
   }
 
+  async function handleDownloadChallan(order) {
+    try {
+      showToast("Preparing PDF…");
+      await downloadChallanPdf(order);
+    } catch (e) {
+      showToast(e.message);
+    }
+  }
+
+  async function handlePrintChallan(order) {
+    try {
+      await printChallanPdf(order);
+    } catch (e) {
+      showToast(e.message);
+    }
+  }
+
   function handleClickBooked() {
     setOrderFilterPreset({ status: "All", todayOnly: true });
     setActiveTab("orders");
@@ -469,6 +487,8 @@ function AdminApp({ session, onLogout, toast, showToast }) {
                 onStatusChange={handleStatusChange}
                 onSaveChallan={handleSaveChallan}
                 onUploadFile={handleUploadOrderFile}
+                onDownloadChallan={handleDownloadChallan}
+                onPrintChallan={handlePrintChallan}
                 isAdmin
                 onWhatsAppPackhouse={handleWhatsAppPackhouse}
                 onWhatsAppCustomer={handleWhatsAppCustomer}

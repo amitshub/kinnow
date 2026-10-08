@@ -7,6 +7,7 @@ function ChallanFormSheet({ open, order, onClose, onSave, onUploadFile }) {
     driver: order?.driver || "",
     driver_mobile: order?.driver_mobile || "",
     transporter: order?.transporter || "",
+    insurance: order?.insurance ? "yes" : "no",
     weight: order?.weight ?? "",
     freight: order?.freight ?? "",
     advance: order?.advance ?? "",
@@ -48,6 +49,7 @@ function ChallanFormSheet({ open, order, onClose, onSave, onUploadFile }) {
       driver: form.driver.trim() || null,
       driver_mobile: form.driver_mobile.trim() || null,
       transporter: form.transporter.trim() || null,
+      insurance: form.insurance === "yes",
       weight: form.weight === "" ? null : parseFloat(form.weight),
       freight: form.freight === "" ? null : parseFloat(form.freight),
       advance: form.advance === "" ? null : parseFloat(form.advance),
@@ -91,6 +93,14 @@ function ChallanFormSheet({ open, order, onClose, onSave, onUploadFile }) {
           <div className="book-form-group">
             <label className="book-form-label">Transporter</label>
             <input className="book-form-control" value={form.transporter} onChange={(e) => setF("transporter", e.target.value)} placeholder="e.g. APR" />
+          </div>
+
+          <div className="book-form-group">
+            <label className="book-form-label">Insurance</label>
+            <select className="book-form-control" value={form.insurance} onChange={(e) => setF("insurance", e.target.value)}>
+              <option value="no">No</option>
+              <option value="yes">Yes</option>
+            </select>
           </div>
 
           <div className="book-form-group">

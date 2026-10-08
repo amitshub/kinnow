@@ -1,11 +1,27 @@
 import React, { useMemo, useState } from "react";
-import { Search, MapPin, Package, Building2, Check, Clock, X, MessageCircle, Truck, Pencil, Trash2, ShoppingCart, Calendar } from "lucide-react";
+import { Search, MapPin, Package, Building2, Check, Clock, X, MessageCircle, Truck, Pencil, Trash2, ShoppingCart, Calendar, FileText, Printer } from "lucide-react";
 import ChallanFormSheet from "../components/ChallanFormSheet";
 import { todayStr } from "../utils";
 
 function totalCrates(order) {
   return order.items.reduce((total, item) => total + Number(item.qty || 0), 0);
 }
+
+const gridTh = { padding: "7px 12px", fontWeight: 600, color: "#374151", textAlign: "left" };
+const gridTd = { padding: "7px 12px", color: "#111827" };
+const cardBtn = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  padding: "6px 12px",
+  borderRadius: 8,
+  border: "1px solid #1a8f5c",
+  background: "#fff",
+  color: "#1a8f5c",
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: "pointer",
+};
 
 function StatusBadge({ status }) {
   return <span className={`admin-order-badge badge-${status.toLowerCase()}`}>{status}</span>;
@@ -17,6 +33,8 @@ export default function AdminOrdersView({
   onSaveChallan,
   onUploadFile,
   onWhatsApp,
+  onDownloadChallan,
+  onPrintChallan,
   isAdmin,
   onWhatsAppPackhouse,
   onWhatsAppCustomer,
@@ -168,6 +186,39 @@ export default function AdminOrdersView({
           )}
         </div>
 
+        {isAdmin && (
+          <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, marginBottom: 12, overflow: "hidden" }}>
+            <div style={{ padding: "10px 12px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #e5e7eb" }}>
+              <strong style={{ fontSize: 13 }}>{isToday ? "Today's Summary" : `Summary – ${selectedDate}`}</strong>
+              <span style={{ fontSize: 12, color: "#6b7280" }}>
+                {dayBooked} {dayBooked === 1 ? "order" : "orders"}
+              </span>
+            </div>
+            {dayOrders.length === 0 ? (
+              <div style={{ padding: "14px 12px", fontSize: 12, color: "#9ca3af" }}>No orders booked on this date.</div>
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: "#f9fafb" }}>
+                    <th style={gridTh}>Customer Name</th>
+                    <th style={gridTh}>Location</th>
+                    <th style={gridTh}>Packhouse</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dayOrders.map((o) => (
+                    <tr key={o.id} style={{ borderTop: "1px solid #f1f5f9" }}>
+                      <td style={gridTd}>{o.customer.name}</td>
+                      <td style={gridTd}>{o.customer.city || "—"}</td>
+                      <td style={gridTd}>{o.packhouse.name}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
         <div className="admin-orders-list">
           {filteredOrders.length === 0 ? (
             <div className="admin-order-empty">
@@ -215,6 +266,20 @@ export default function AdminOrdersView({
                     {order.packhouse.name.replace("PH-", "PH")}
                   </span>
                 </div>
+
+                {isAdmin && order.truck && (
+                  <div
+                    style={{ display: "flex", gap: 8, padding: "10px 14px 12px", borderTop: "1px solid #f1f5f9" }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button type="button" style={cardBtn} onClick={() => onDownloadChallan(order)}>
+                      <FileText size={14} /> PDF
+                    </button>
+                    <button type="button" style={{ ...cardBtn, borderColor: "#6b7280", color: "#374151" }} onClick={() => onPrintChallan(order)}>
+                      <Printer size={14} /> Print
+                    </button>
+                  </div>
+                )}
               </div>
             ))
           )}
@@ -312,6 +377,7 @@ function OrderDetailSheet({
                 <DetailRow label="Driver" value={order.driver} />
                 <DetailRow label="Driver Mobile" value={order.driver_mobile || "—"} />
                 <DetailRow label="Transporter" value={order.transporter} />
+                <DetailRow label="Insurance" value={order.insurance == null ? "—" : order.insurance ? "Yes" : "No"} />
                 <DetailRow label="Weight" value={order.weight != null ? `${Number(order.weight).toLocaleString("en-IN")} kg` : "—"} />
                 <DetailRow label="Freight" value={order.freight != null ? `₹${Number(order.freight).toLocaleString("en-IN")}` : "—"} />
                 <DetailRow label="Advance" value={order.advance != null ? `₹${Number(order.advance).toLocaleString("en-IN")}` : "—"} />

@@ -185,6 +185,23 @@ export const api = {
   deleteOrder(id) {
     return request(`/orders/${id}`, { method: "DELETE" });
   },
+  async getChallanPdf(orderId, mode = "letterhead") {
+    const token = getToken();
+    const res = await fetch(`${API_URL}/orders/${orderId}/challan-pdf?mode=${mode}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      let message = `Could not create the PDF (${res.status})`;
+      try {
+        const data = await res.json();
+        if (data && typeof data.detail === "string") message = data.detail;
+      } catch {
+        // no JSON body
+      }
+      throw new ApiError(message, res.status);
+    }
+    return res.blob();
+  },
   uploadOrderFile(orderId, field, file) {
     const formData = new FormData();
     formData.append("file", file);

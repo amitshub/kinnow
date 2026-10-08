@@ -8,6 +8,7 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, ed
   const [newName, setNewName] = useState("");
   const [newMobile, setNewMobile] = useState("");
   const [newCity, setNewCity] = useState("");
+  const [newAddress, setNewAddress] = useState("");
 
   const [packhouseId, setPackhouseId] = useState(packhouses[0]?.id || "");
   const [truckTonnage, setTruckTonnage] = useState("");
@@ -77,7 +78,7 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, ed
       customer_id: customerMode === "existing" ? Number(existingCustomerId) : null,
       new_customer:
         customerMode === "new"
-          ? { name: newName.trim(), mobile: newMobile.trim() || null, city: newCity.trim() || null }
+          ? { name: newName.trim(), mobile: newMobile.trim() || null, city: newCity.trim() || null, address: newAddress.trim() || null }
           : null,
       order_date: editingOrder ? editingOrder.order_date : todayStr(),
       remarks,
@@ -100,6 +101,7 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, ed
     setNewName("");
     setNewMobile("");
     setNewCity("");
+    setNewAddress("");
     setPackhouseId(packhouses[0]?.id || "");
     setTruckTonnage("");
     setRemarks("");
@@ -185,7 +187,7 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, ed
                   placeholder="9XXXXXXXXX"
                 />
               </div>
-              <div className="book-form-group" style={{ marginBottom: 0 }}>
+              <div className="book-form-group">
                 <label className="book-form-label">City</label>
                 <input
                   type="text"
@@ -193,6 +195,16 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, ed
                   value={newCity}
                   onChange={(e) => setNewCity(e.target.value)}
                   placeholder="e.g. Agartala"
+                />
+              </div>
+              <div className="book-form-group" style={{ marginBottom: 0 }}>
+                <label className="book-form-label">Address</label>
+                <input
+                  type="text"
+                  className="book-form-control"
+                  value={newAddress}
+                  onChange={(e) => setNewAddress(e.target.value)}
+                  placeholder="e.g. MG Bazar, Kalapatty"
                 />
               </div>
             </>
