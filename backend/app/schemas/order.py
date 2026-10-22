@@ -1,12 +1,14 @@
 from datetime import date, time
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from app.models.order import OrderStatus
 from app.schemas.customer import CustomerOut
+from app.schemas.validators import ten_digit_mobile
 
 
 class OrderItemIn(BaseModel):
+    item: str | None = "Kinnow"
     brand: str
     variety: str
     quality: str
@@ -40,6 +42,11 @@ class ChallanUpdate(BaseModel):
     del_date: date | None = None
     del_time: time | None = None
     insurance: bool | None = None
+
+    @field_validator("driver_mobile")
+    @classmethod
+    def _check_driver_mobile(cls, v):
+        return ten_digit_mobile(v)
 
 
 class StatusUpdate(BaseModel):

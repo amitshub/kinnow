@@ -49,8 +49,11 @@ async function request(path, { method = "GET", body, isForm = false } = {}) {
   }
 
   if (!res.ok) {
-    const message =
-      (data && (data.detail || data.message)) || `Request failed (${res.status})`;
+    let message = (data && (data.detail || data.message)) || `Request failed (${res.status})`;
+    if (Array.isArray(message)) {
+      // Validation errors: show just the readable part, e.g. "Mobile number must be exactly 10 digits"
+      message = message.map((m) => String(m.msg || "").replace(/^Value error, /, "")).filter(Boolean).join("; ") || "Please check the details and try again";
+    }
     throw new ApiError(typeof message === "string" ? message : JSON.stringify(message), res.status);
   }
 
@@ -202,6 +205,14 @@ export const api = {
     }
     return res.blob();
   },
+  async getSummaryPdf(date) {
+    const token = getToken();
+    const res = await fetch(`${API_URL}/orders/summary-pdf?date=${encodeURIComponent(date)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new ApiError(`Could not create the PDF (${res.status})`, res.status);
+    return res.blob();
+  },
   uploadOrderFile(orderId, field, file) {
     const formData = new FormData();
     formData.append("file", file);
@@ -211,6 +222,9 @@ export const api = {
   // ---- Catalog: brands / varieties / qualities ----
   // Read-only from the app's perspective — new values are added directly
   // in the database for now, no in-app management screen.
+  listItems() {
+    return request("/items");
+  },
   listBrands() {
     return request("/brands");
   },

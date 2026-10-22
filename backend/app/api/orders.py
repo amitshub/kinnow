@@ -1,4 +1,5 @@
 import base64
+from datetime import date as date_type
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy.orm import Session, joinedload
@@ -10,7 +11,7 @@ from app.models.customer import Customer
 from app.models.order import Order, OrderItem, OrderStatus
 from app.models.user import User, UserRole
 from app.schemas.order import ChallanUpdate, OrderCreate, OrderOut, StatusUpdate
-from app.services.challan_pdf import build_challan_pdf
+from app.services.challan_pdf import build_challan_pdf, build_summary_pdf, challan_filename
 from app.services.whatsapp import send_order_assigned_notification, send_order_dispatched_notification
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -77,6 +78,7 @@ def create_order(
         db.add(
             OrderItem(
                 order_id=order.id,
+                item=item.item or "Kinnow",
                 brand=item.brand,
                 variety=item.variety,
                 quality=item.quality,
@@ -127,6 +129,7 @@ def update_order(
         db.add(
             OrderItem(
                 order_id=order.id,
+                item=item.item or "Kinnow",
                 brand=item.brand,
                 variety=item.variety,
                 quality=item.quality,
@@ -211,17 +214,39 @@ def update_challan(
     return order
 
 
+@router.get("/summary-pdf")
+def summary_pdf(
+    day: date_type = Query(..., alias="date"),
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    """The Orders screen's summary grid (Customer | Location | Packhouse) for one date, as a plain PDF. Admin only."""
+    orders = (
+        db.query(Order)
+        .options(joinedload(Order.customer), joinedload(Order.packhouse))
+        .filter(Order.order_date == day)
+        .order_by(Order.id.desc())
+        .all()
+    )
+    pdf = build_summary_pdf(day, orders)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="Summary_{day.strftime("%d-%m-%Y")}.pdf"'},
+    )
+
+
 @router.get("/{order_id}/challan-pdf")
 def challan_pdf(
     order_id: int,
     mode: str = Query("letterhead", pattern="^(letterhead|print)$"),
     db: Session = Depends(get_db),
-    _admin: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ):
-    """Dispatch challan as an A4 PDF (admin only).
+    """Dispatch challan as an A4 PDF. Admins can open any order; packhouse users only their own packhouse's.
 
-    mode=letterhead -> includes the letterhead artwork (for downloading)
-    mode=print      -> no artwork, with 7.5 cm top / 6.5 cm bottom margins, for
+    mode=letterhead -> letterhead artwork, followed by the uploaded Bilty and Kaanta Parchi pages (for downloading)
+    mode=print      -> challan only: no artwork, with 7.5 cm top / 6.5 cm bottom margins, for
                        printing on paper that already has the letterhead."""
     order = (
         db.query(Order)
@@ -231,14 +256,16 @@ def challan_pdf(
     )
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    _ensure_order_access(current_user, order)
     if not order.truck:
         raise HTTPException(status_code=400, detail="Dispatch details have not been entered for this order yet")
 
-    pdf = build_challan_pdf(order, letterhead=(mode == "letterhead"))
+    letterhead = mode == "letterhead"
+    pdf = build_challan_pdf(order, letterhead=letterhead, include_attachments=letterhead)
     return Response(
         content=pdf,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="Challan-{order.code}.pdf"'},
+        headers={"Content-Disposition": f'inline; filename="{challan_filename(order, print_mode=not letterhead)}"'},
     )
 
 

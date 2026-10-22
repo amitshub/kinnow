@@ -17,3 +17,4 @@ from app.models.message_content import MessageContent  # noqa: F401
 from app.models.brand import Brand  # noqa: F401
 from app.models.variety import Variety  # noqa: F401
 from app.models.quality import Quality  # noqa: F401
+from app.models.item import Item  # noqa: F401

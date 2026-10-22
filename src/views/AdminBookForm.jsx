@@ -1,8 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { Plus, X, Send, MessageCircle, Building2, UserPlus, Check, Pencil } from "lucide-react";
 import { todayStr } from "../utils";
+import EditCustomerSheet from "../components/EditCustomerSheet";
+import { cleanMobile } from "../mobile";
 
-function AdminBookForm({ customers, packhouses, brands, varieties, qualities, editingOrder, onBookOrder, onUpdateOrder, onCancelEdit }) {
+const FALLBACK_ITEMS = ["Kinnow", "Malta", "Apple", "Mango"];
+
+function AdminBookForm({ customers, packhouses, brands, varieties, qualities, itemOptions, editingOrder, onBookOrder, onUpdateOrder, onCancelEdit, onUpdateCustomer }) {
   const [customerMode, setCustomerMode] = useState("existing"); // "existing" | "new"
   const [existingCustomerId, setExistingCustomerId] = useState("");
   const [newName, setNewName] = useState("");
@@ -16,11 +20,34 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, ed
 
   const [items, setItems] = useState([]);
 
-  const [brand, setBrand] = useState(brands[0]?.name || "");
+  const [editCustomerOpen, setEditCustomerOpen] = useState(false);
+
+  // Defaults: item Kinnow, brand Eagle, crate quality Prem (falls back to the first in each list).
+  const itemNames = itemOptions && itemOptions.length ? itemOptions.map((i) => i.name) : FALLBACK_ITEMS;
+  function defaultItem() {
+    return itemNames.find((n) => n.toLowerCase() === "kinnow") || itemNames[0] || "Kinnow";
+  }
+  function defaultBrand() {
+    return (brands.find((b) => b.name.toLowerCase() === "eagle") || brands[0])?.name || "";
+  }
+  function defaultQuality() {
+    return (qualities.find((q) => q.name.toLowerCase().startsWith("prem")) || qualities[0])?.name || "";
+  }
+
+  const [item, setItem] = useState(defaultItem);
+  const [brand, setBrand] = useState(defaultBrand);
   const [variety, setVariety] = useState(varieties[0]?.name || "");
-  const [quality, setQuality] = useState(qualities[0]?.name || "");
+  const [quality, setQuality] = useState(defaultQuality);
   const [qty, setQty] = useState("");
   const [rate, setRate] = useState("");
+
+  // The lists can arrive after the form first renders; fill in any default that is still empty.
+  useEffect(() => {
+    setBrand((b) => b || defaultBrand());
+    setVariety((v) => v || varieties[0]?.name || "");
+    setQuality((q) => q || defaultQuality());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brands, varieties, qualities]);
 
   // Sync form state whenever we switch into/out of editing an order.
   useEffect(() => {
@@ -31,7 +58,7 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, ed
       setTruckTonnage(editingOrder.truck_tonnage ?? "");
       setRemarks(editingOrder.remarks || "");
       setItems(
-        editingOrder.items.map((i) => ({ brand: i.brand, variety: i.variety, quality: i.quality, qty: i.qty, rate: i.rate ?? "" }))
+        editingOrder.items.map((i) => ({ item: i.item || "Kinnow", brand: i.brand, variety: i.variety, quality: i.quality, qty: i.qty, rate: i.rate ?? "" }))
       );
     } else {
       clearBookForm();
@@ -45,7 +72,7 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, ed
       alert("Enter quantity first");
       return;
     }
-    setItems((list) => [...list, { brand, variety, quality, qty: quantity, rate: rate === "" ? null : parseFloat(rate) }]);
+    setItems((list) => [...list, { item, brand, variety, quality, qty: quantity, rate: rate === "" ? null : parseFloat(rate) }]);
     setQty("");
     setRate("");
   }
@@ -62,16 +89,18 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, ed
   const customerLabel = customerName && customerCity ? `${customerName}, ${customerCity}` : customerName;
   const packhouseName = packhouses.find((p) => p.id === Number(packhouseId))?.name || "";
 
+  const itemPrefix = (line) => (line.item && line.item.toLowerCase() !== "kinnow" ? `${line.item} ` : "");
   const customerItemLines = items
-    .map((item) => `• ${item.brand} ${item.variety} – ${item.quality} – ${item.qty} crates${item.rate ? ` @ ₹${item.rate}` : ""}`)
+    .map((line) => `• ${itemPrefix(line)}${line.brand} ${line.variety} – ${line.quality} – ${line.qty} crates${line.rate ? ` @ ₹${line.rate}` : ""}`)
     .join("\n");
   const packhouseItemLines = items
-    .map((item) => `• ${item.brand} ${item.variety} – ${item.quality} – ${item.qty} crates`)
+    .map((line) => `• ${itemPrefix(line)}${line.brand} ${line.variety} – ${line.quality} – ${line.qty} crates`)
     .join("\n");
 
   async function bookOrder() {
     if (customerMode === "existing" && !existingCustomerId) return alert("Please select a customer");
     if (customerMode === "new" && !newName.trim()) return alert("Enter the new customer's name");
+    if (customerMode === "new" && newMobile && newMobile.length !== 10) return alert("Mobile number must be exactly 10 digits");
     if (!items.length) return alert("Add at least one item");
 
     const payload = {
@@ -106,9 +135,10 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, ed
     setTruckTonnage("");
     setRemarks("");
     setItems([]);
-    setBrand(brands[0]?.name || "");
+    setItem(defaultItem());
+    setBrand(defaultBrand());
     setVariety(varieties[0]?.name || "");
-    setQuality(qualities[0]?.name || "");
+    setQuality(defaultQuality());
     setQty("");
     setRate("");
   }
@@ -151,7 +181,18 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, ed
 
           {customerMode === "existing" ? (
             <div className="book-form-group" style={{ marginBottom: 0 }}>
-              <label className="book-form-label">Customer</label>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <label className="book-form-label">Customer</label>
+                {selectedExisting && (
+                  <button
+                    type="button"
+                    onClick={() => setEditCustomerOpen(true)}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 4, border: "none", background: "none", color: "#1a8f5c", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}
+                  >
+                    <Pencil size={12} /> Edit customer
+                  </button>
+                )}
+              </div>
               <select
                 className="book-form-control"
                 value={existingCustomerId}
@@ -164,6 +205,11 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, ed
                   </option>
                 ))}
               </select>
+              {selectedExisting && (
+                <div style={{ marginTop: 6, fontSize: 12, color: selectedExisting.address ? "#6b7280" : "#b45309" }}>
+                  {selectedExisting.address || "No address yet – tap Edit customer to add one"}
+                </div>
+              )}
             </div>
           ) : (
             <>
@@ -182,9 +228,10 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, ed
                 <input
                   type="tel"
                   className="book-form-control"
+                  inputMode="numeric"
                   value={newMobile}
-                  onChange={(e) => setNewMobile(e.target.value)}
-                  placeholder="9XXXXXXXXX"
+                  onChange={(e) => setNewMobile(cleanMobile(e.target.value))}
+                  placeholder="9XXXXXXXXX (10 digits)"
                 />
               </div>
               <div className="book-form-group">
@@ -250,7 +297,7 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, ed
       </div>
 
       <div className="book-section-head">
-        <div className="book-section-title">Items (Kinnow)</div>
+        <div className="book-section-title">Items</div>
         <div className="book-total-badge">{totalCrates > 0 ? `${totalCrates} crates` : ""}</div>
       </div>
 
@@ -267,17 +314,18 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, ed
           {items.length === 0 ? (
             <div className="book-empty">No items added yet</div>
           ) : (
-            items.map((item, index) => (
+            items.map((line, index) => (
               <div className="book-item-row" key={index}>
                 <div>
-                  <div className="book-item-brand">{item.brand}</div>
+                  <div className="book-item-brand">{line.brand}</div>
+                  <div style={{ fontSize: 10, color: "#6b7280" }}>{line.item || "Kinnow"}</div>
                 </div>
-                <div className="book-item-variety">{item.variety}</div>
+                <div className="book-item-variety">{line.variety}</div>
                 <div className="book-item-quality">
-                  {item.quality}
-                  {item.rate ? <div style={{ fontSize: 11, color: "#059669" }}>₹{item.rate}</div> : null}
+                  {line.quality}
+                  {line.rate ? <div style={{ fontSize: 11, color: "#059669" }}>₹{line.rate}</div> : null}
                 </div>
-                <div className="book-item-qty">{item.qty}</div>
+                <div className="book-item-qty">{line.qty}</div>
                 <button type="button" className="book-delete-btn" onClick={() => removeItem(index)} aria-label="Remove item">
                   <X size={15} />
                 </button>
@@ -287,6 +335,14 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, ed
         </div>
 
         <div className="book-add-item-row">
+          <select className="book-form-control" value={item} onChange={(e) => setItem(e.target.value)}>
+            {itemNames.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+
           <select className="book-form-control" value={brand} onChange={(e) => setBrand(e.target.value)}>
             {brands.map((b) => (
               <option key={b.id} value={b.name}>
@@ -402,6 +458,15 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, ed
       <button type="button" className="book-clear-btn" onClick={editingOrder ? handleCancelEdit : clearBookForm}>
         {editingOrder ? "Cancel Edit" : "Clear form"}
       </button>
+
+      {editCustomerOpen && selectedExisting && (
+        <EditCustomerSheet
+          key={selectedExisting.id}
+          customer={selectedExisting}
+          onClose={() => setEditCustomerOpen(false)}
+          onSave={onUpdateCustomer}
+        />
+      )}
     </div>
   );
 }

@@ -40,7 +40,7 @@ def update_customer(
     customer = db.query(Customer).filter(Customer.id == customer_id).first()
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
-    for field, value in payload.model_dump().items():
+    for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(customer, field, value)
     db.commit()
     db.refresh(customer)

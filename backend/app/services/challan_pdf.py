@@ -3,7 +3,9 @@ Dispatch challan PDF (A4), laid out like the company's printed challan.
 
 Two modes, same body layout:
   * letterhead=True  -> the letterhead artwork (header + footer) is drawn on
-                        every page. This is the version admins download.
+                        every page. This is the version that gets downloaded;
+                        with include_attachments=True the uploaded Bilty and
+                        Kaanta Parchi (photos or PDFs) follow as extra pages.
   * letterhead=False -> no artwork at all. Meant for printing on paper that
                         already carries the pre-printed letterhead.
 
@@ -14,15 +16,21 @@ BOTTOM_MARGIN below if a test print shows it needs a nudge.
 
 from __future__ import annotations
 
+import base64
+import re
 from io import BytesIO
 from pathlib import Path
 from xml.sax.saxutils import escape
 
+from PIL import Image, ImageOps
+
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
+from reportlab.lib.utils import ImageReader
+from reportlab.pdfgen import canvas as rl_canvas
 from reportlab.platypus import (
     BaseDocTemplate,
     Frame,
@@ -119,8 +127,9 @@ def _build_story(order) -> list:
     story.append(Spacer(1, 3 * mm))
 
     # -- who / what / where ---------------------------------------------------
+    pcode = (getattr(order.packhouse, "code", None) or "").strip().upper() if getattr(order, "packhouse", None) else ""
     left = [
-        ("CH NO.", order.code),
+        ("CH NO.", f"{order.code} / {pcode}" if pcode else order.code),
         ("Customer", _up(cust.name)),
         ("Mob", cust.mobile or ""),
         ("Address", _up(cust.address)),
@@ -152,7 +161,7 @@ def _build_story(order) -> list:
     rows = [[_p(h, S_TH) for h in head]]
     for n, it in enumerate(items, start=1):
         rows.append([
-            _p(n, S_TD), _p("KINNOW", S_TD), _p(_up(it.variety), S_TD), _p(_up(it.brand), S_TD),
+            _p(n, S_TD), _p(_up(getattr(it, "item", None) or "Kinnow"), S_TD), _p(_up(it.variety), S_TD), _p(_up(it.brand), S_TD),
             _p(_up(it.quality), S_TD), _p("CRATE", S_TD), _p(it.qty, S_TD),
         ])
     rows.append([_p("Total", S_TOTAL_LABEL), "", "", "", "", "", _p(total_qty, S_TD_B)])
@@ -204,8 +213,7 @@ def _build_story(order) -> list:
     return story
 
 
-def build_challan_pdf(order, *, letterhead: bool) -> bytes:
-    """Render the dispatch challan for `order` (needs .customer and .items loaded)."""
+def _build_challan_only(order, *, letterhead: bool) -> bytes:
     buf = BytesIO()
     doc = BaseDocTemplate(
         buf,
@@ -223,4 +231,159 @@ def build_challan_pdf(order, *, letterhead: bool) -> bytes:
     )
     doc.addPageTemplates([PageTemplate(id="challan", frames=[frame], onPage=_letterhead_page if letterhead else _plain_page)])
     doc.build(_build_story(order))
+    return buf.getvalue()
+
+
+def build_challan_pdf(order, *, letterhead: bool, include_attachments: bool = False) -> bytes:
+    """Render the dispatch challan for `order` (needs .customer, .items and .packhouse loaded).
+
+    With include_attachments=True, the uploaded Bilty and then the Kaanta Parchi are appended
+    after the challan page(s) - images become one page each, PDFs are merged page by page."""
+    challan = _build_challan_only(order, letterhead=letterhead)
+    if not include_attachments:
+        return challan
+
+    extras: list[bytes] = []
+    for label, data_uri in (("Bilty", order.bilty), ("Kaanta Parchi", order.kaanta)):
+        if data_uri:
+            extras.append(_attachment_pdf(label, order.code, data_uri))
+    if not extras:
+        return challan
+
+    from pypdf import PdfReader, PdfWriter  # imported here so the rest works even if pypdf is missing
+
+    writer = PdfWriter()
+    writer.append(PdfReader(BytesIO(challan)))
+    for extra in extras:
+        writer.append(PdfReader(BytesIO(extra)))
+    out = BytesIO()
+    writer.write(out)
+    return out.getvalue()
+
+
+# ---- uploaded Bilty / Kaanta Parchi pages -----------------------------------
+def _decode_data_uri(data_uri: str):
+    """'data:<mime>;base64,<payload>' -> (mime, bytes), or None if it isn't one."""
+    try:
+        header, payload = data_uri.split(",", 1)
+        mime = header[5:].split(";")[0].strip().lower()
+        return mime, base64.b64decode(payload)
+    except Exception:
+        return None
+
+
+def _attachment_pdf(label: str, order_code: str, data_uri: str) -> bytes:
+    """One uploaded document as PDF bytes. Never raises: a file that can't be read becomes a short note page."""
+    decoded = _decode_data_uri(data_uri)
+    try:
+        if decoded is None:
+            raise ValueError("not a data URI")
+        mime, raw = decoded
+        if mime == "application/pdf":
+            return _checked_pdf(raw)
+        return _image_page(f"{label.upper()} - {order_code}", raw)
+    except Exception:
+        return _note_page(f"{label} - {order_code}", f"The uploaded {label} file could not be added to this PDF.")
+
+
+def _checked_pdf(raw: bytes) -> bytes:
+    from pypdf import PdfReader
+
+    reader = PdfReader(BytesIO(raw))
+    if reader.is_encrypted and not reader.decrypt(""):
+        raise ValueError("password-protected PDF")
+    if len(reader.pages) == 0:
+        raise ValueError("empty PDF")
+    return raw
+
+
+def _image_page(title: str, raw: bytes) -> bytes:
+    """A page with the photo scaled to fit (landscape page for a landscape photo)."""
+    img = ImageOps.exif_transpose(Image.open(BytesIO(raw)))
+    if img.mode in ("RGBA", "LA", "P"):
+        rgba = img.convert("RGBA")
+        flat = Image.new("RGB", rgba.size, (255, 255, 255))
+        flat.paste(rgba, mask=rgba.split()[-1])
+        img = flat
+    else:
+        img = img.convert("RGB")
+    img.thumbnail((2600, 2600))
+    jpeg = BytesIO()
+    img.save(jpeg, "JPEG", quality=88)
+    jpeg.seek(0)
+
+    w, h = img.size
+    size = landscape(A4) if w > h * 1.15 else A4
+    pw, ph = size
+    margin = 12 * mm
+    out = BytesIO()
+    c = rl_canvas.Canvas(out, pagesize=size)
+    c.setTitle(title)
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(margin, ph - margin - 3 * mm, title)
+    c.drawImage(
+        ImageReader(jpeg), margin, margin, width=pw - 2 * margin, height=ph - 2 * margin - 10 * mm,
+        preserveAspectRatio=True, anchor="c",
+    )
+    c.showPage()
+    c.save()
+    return out.getvalue()
+
+
+def _note_page(title: str, message: str) -> bytes:
+    out = BytesIO()
+    c = rl_canvas.Canvas(out, pagesize=A4)
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(12 * mm, PAGE_H - 15 * mm, title.upper())
+    c.setFont("Helvetica", 10)
+    c.drawString(12 * mm, PAGE_H - 25 * mm, message)
+    c.showPage()
+    c.save()
+    return out.getvalue()
+
+
+# ---- file names --------------------------------------------------------------
+def challan_filename(order, *, print_mode: bool) -> str:
+    """Station name + dispatch date, e.g. Agartala_13-01-2026.pdf  (the print copy gets '-print')."""
+    station = (order.customer.city or order.customer.name or "Challan").strip()
+    when = order.dispatch_date or order.order_date
+    stem = re.sub(r"[^A-Za-z0-9_-]+", "_", f"{station}_{when.strftime('%d-%m-%Y')}").strip("_")
+    return f"{stem}{'-print' if print_mode else ''}.pdf"
+
+
+# ---- Orders-screen summary ---------------------------------------------------
+def build_summary_pdf(day, orders) -> bytes:
+    """Plain PDF of the summary grid: Customer Name | Location | Packhouse, with the date."""
+    from reportlab.platypus import SimpleDocTemplate
+
+    buf = BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4, leftMargin=15 * mm, rightMargin=15 * mm, topMargin=15 * mm, bottomMargin=15 * mm,
+        title=f"Order Summary {day.strftime('%d-%m-%Y')}", author="Shiv Bhola Group",
+    )
+    story = [
+        _p("Order Summary", S_TITLE),
+        _p(f"Date: {day.strftime('%d-%m-%Y')} ({day.strftime('%A')})", S_SUB),
+        Spacer(1, 6 * mm),
+    ]
+    if orders:
+        rows = [[_p("Customer Name", S_TH), _p("Location", S_TH), _p("Packhouse", S_TH)]]
+        for o in orders:
+            rows.append([
+                _p(o.customer.name, ParagraphStyle("c1", **{**_base, "fontSize": 9})),
+                _p(o.customer.city or "-", ParagraphStyle("c2", **{**_base, "fontSize": 9})),
+                _p(o.packhouse.name, ParagraphStyle("c3", **{**_base, "fontSize": 9})),
+            ])
+        tbl = Table(rows, colWidths=[75 * mm, 45 * mm, 60 * mm], repeatRows=1)
+        tbl.setStyle(TableStyle([
+            ("GRID", (0, 0), (-1, -1), 0.6, colors.black),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EFEFEF")),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        story += [tbl, Spacer(1, 4 * mm), _p(f"Total orders: {len(orders)}", S_LABEL)]
+    else:
+        story.append(_p("No orders booked on this date.", S_VALUE))
+    doc.build(story)
     return buf.getvalue()

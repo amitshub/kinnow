@@ -18,6 +18,15 @@ IST = timezone(timedelta(hours=5, minutes=30))
 # message_content row holding the approved "Order has been dispatched" template.
 DISPATCH_CONTENT_ID = 2
 
+# The packhouse code (e.g. JMB) is appended to one of the template's existing variables, so no new template
+# approval is needed. "1" = Date, "2" = Customer Name, "3" = Location, "4" = Truck Number.
+DISPATCH_CODE_SLOT = "1"
+
+
+def _item_prefix(order_item) -> str:
+    name = (getattr(order_item, "item", None) or "").strip()
+    return f"{name} " if name and name.lower() != "kinnow" else ""
+
 
 def _total_crates(order: Order) -> int:
     return sum(item.qty for item in order.items)
@@ -64,7 +73,7 @@ def send_order_assigned_notification(order_id: int) -> None:
             return
 
         items_text = "; ".join(
-            f"{i.brand} {i.variety} – {i.quality} – {i.qty} crates" for i in order.items
+            f"{_item_prefix(i)}{i.brand} {i.variety} – {i.quality} – {i.qty} crates" for i in order.items
         )
         # Customer name + location, e.g. "Kishan Sharma, Bengluru" — keeps the
         # existing 4-variable template valid (no re-approval needed).
@@ -175,15 +184,17 @@ def send_order_dispatched_notification(order_id: int) -> None:
             return
 
         # WhatsApp rejects empty template variables, so fall back to "-".
-        content_variables = json.dumps(
-            {
-                "1": datetime.now(IST).strftime("%d-%m-%Y"),
-                "2": order.customer.name or "-",
-                "3": order.customer.city or "-",
-                "4": order.truck or "-",
-                "5": order.driver_mobile or "-",
-            }
-        )
+        variables = {
+            "1": datetime.now(IST).strftime("%d-%m-%Y"),
+            "2": order.customer.name or "-",
+            "3": order.customer.city or "-",
+            "4": order.truck or "-",
+            "5": order.driver_mobile or "-",
+        }
+        packhouse_code = (getattr(order.packhouse, "code", None) or "").strip().upper()
+        if packhouse_code:
+            variables[DISPATCH_CODE_SLOT] = f"{variables[DISPATCH_CODE_SLOT]} ({packhouse_code})"
+        content_variables = json.dumps(variables)
 
         from twilio.rest import Client
 

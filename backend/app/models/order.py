@@ -59,6 +59,7 @@ class OrderItem(Base):
     brand = Column(String(60), nullable=False)
     variety = Column(String(60), nullable=False)
     quality = Column(String(60), nullable=False)
+    item = Column(String(60), nullable=True, default="Kinnow")  # Kinnow, Malta, Apple, Mango ...
     qty = Column(Integer, nullable=False)
     rate = Column(Float, nullable=True)  # optional price per unit for this item
 

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db, require_admin
 from app.models.brand import Brand
+from app.models.item import Item
 from app.models.quality import Quality
 from app.models.user import User
 from app.models.variety import Variety
@@ -62,6 +63,7 @@ def _build_routes(prefix: str, model) -> APIRouter:
     return sub
 
 
+router.include_router(_build_routes("/items", Item))
 router.include_router(_build_routes("/brands", Brand))
 router.include_router(_build_routes("/varieties", Variety))
 router.include_router(_build_routes("/qualities", Quality))

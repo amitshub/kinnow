@@ -10,6 +10,7 @@ class Packhouse(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(120), unique=True, nullable=False)  # e.g. "PH-1 Abohar"
     city = Column(String(120), nullable=True)
+    code = Column(String(10), nullable=True)  # short code printed on the challan, e.g. "JMB"
 
     users = relationship("User", back_populates="packhouse")
     growers = relationship("Grower", back_populates="packhouse")

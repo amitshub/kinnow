@@ -12,10 +12,26 @@ function saveBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
 }
 
-// "PDF" button: the challan with the letterhead artwork, downloaded.
+// File name = station name + dispatch date, e.g. Agartala_13-01-2026
+function fileStem(order) {
+  const station = ((order.customer && (order.customer.city || order.customer.name)) || "Challan").trim();
+  const when = order.dispatch_date || order.order_date || ""; // YYYY-MM-DD
+  const [y, m, d] = when.split("-");
+  const date = y && m && d ? `${d}-${m}-${y}` : "";
+  return `${station}_${date}`.replace(/[^A-Za-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+// "PDF" button: the challan with the letterhead artwork, followed by the uploaded Bilty and Kaanta Parchi.
 export async function downloadChallanPdf(order) {
   const blob = await api.getChallanPdf(order.id, "letterhead");
-  saveBlob(blob, `Challan-${order.code}.pdf`);
+  saveBlob(blob, `${fileStem(order)}.pdf`);
+}
+
+// Orders screen "PDF" button: the summary grid for the chosen date (YYYY-MM-DD).
+export async function downloadSummaryPdf(date) {
+  const blob = await api.getSummaryPdf(date);
+  const [y, m, d] = date.split("-");
+  saveBlob(blob, `Summary_${d}-${m}-${y}.pdf`);
 }
 
 // "Print" button: the challan without artwork and with the margins for the
@@ -32,7 +48,7 @@ export async function printChallanPdf(order) {
       win.location.href = url;
       setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
     } else {
-      saveBlob(blob, `Challan-${order.code}-print.pdf`);
+      saveBlob(blob, `${fileStem(order)}-print.pdf`); // the '-print.pdf' ending is what the Android app uses to open the print dialog
     }
   } catch (e) {
     if (win) win.close();

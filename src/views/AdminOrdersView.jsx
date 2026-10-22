@@ -3,6 +3,12 @@ import { Search, MapPin, Package, Building2, Check, Clock, X, MessageCircle, Tru
 import ChallanFormSheet from "../components/ChallanFormSheet";
 import { todayStr } from "../utils";
 
+// "Malta · " etc. Kinnow is the default item, so it isn't repeated on every line.
+function itemTag(line) {
+  const name = (line.item || "").trim();
+  return name && name.toLowerCase() !== "kinnow" ? `${name} · ` : "";
+}
+
 function totalCrates(order) {
   return order.items.reduce((total, item) => total + Number(item.qty || 0), 0);
 }
@@ -35,6 +41,7 @@ export default function AdminOrdersView({
   onWhatsApp,
   onDownloadChallan,
   onPrintChallan,
+  onDownloadSummary,
   isAdmin,
   onWhatsAppPackhouse,
   onWhatsAppCustomer,
@@ -190,8 +197,11 @@ export default function AdminOrdersView({
           <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, marginBottom: 12, overflow: "hidden" }}>
             <div style={{ padding: "10px 12px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #e5e7eb" }}>
               <strong style={{ fontSize: 13 }}>{isToday ? "Today's Summary" : `Summary – ${selectedDate}`}</strong>
-              <span style={{ fontSize: 12, color: "#6b7280" }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: 12, color: "#6b7280" }}>
                 {dayBooked} {dayBooked === 1 ? "order" : "orders"}
+                <button type="button" style={{ ...cardBtn, padding: "4px 10px" }} onClick={() => onDownloadSummary(selectedDate)}>
+                  <FileText size={13} /> PDF
+                </button>
               </span>
             </div>
             {dayOrders.length === 0 ? (
@@ -247,6 +257,7 @@ export default function AdminOrdersView({
                   {order.items.map((item, index) => (
                     <div className="admin-order-item" key={index}>
                       <span>
+                        {itemTag(item)}
                         <strong>{item.brand}</strong> {item.variety} · {item.quality}
                         {item.rate ? ` · ₹${item.rate}` : ""}
                       </span>
@@ -267,7 +278,7 @@ export default function AdminOrdersView({
                   </span>
                 </div>
 
-                {isAdmin && order.truck && (
+                {order.truck && (
                   <div
                     style={{ display: "flex", gap: 8, padding: "10px 14px 12px", borderTop: "1px solid #f1f5f9" }}
                     onClick={(e) => e.stopPropagation()}
@@ -301,13 +312,16 @@ export default function AdminOrdersView({
         />
       )}
 
-      <ChallanFormSheet
-        open={!!challanOrder}
-        order={challanOrder}
-        onClose={() => setChallanOrder(null)}
-        onSave={handleSaveChallan}
-        onUploadFile={onUploadFile}
-      />
+      {challanOrder && (
+        <ChallanFormSheet
+          key={challanOrder.id}
+          open
+          order={challanOrder}
+          onClose={() => setChallanOrder(null)}
+          onSave={handleSaveChallan}
+          onUploadFile={onUploadFile}
+        />
+      )}
     </>
   );
 }
@@ -363,7 +377,7 @@ function OrderDetailSheet({
             {order.items.map((item, index) => (
               <DetailRow
                 key={index}
-                label={`${item.brand} ${item.variety} · ${item.quality}`}
+                label={`${itemTag(item)}${item.brand} ${item.variety} · ${item.quality}`}
                 value={item.rate ? `${item.qty} crates @ ₹${item.rate}` : `${item.qty} crates`}
               />
             ))}

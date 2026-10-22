@@ -28,6 +28,7 @@ from app.models.brand import Brand
 from app.models.company_settings import CompanySettings
 from app.models.customer import Customer
 from app.models.grower import Grower
+from app.models.item import Item
 from app.models.message_content import MessageContent
 from app.models.message_sender import MessageSender
 from app.models.order import Order, OrderItem, OrderStatus
@@ -50,6 +51,7 @@ SAMPLE_GROWERS = [
     ("G005", "Parveen Fruit Farm", "Rampura, Hanumangarh", "Hanumangarh", "9876500005", "Parveen Kumar - Axis 3340"),
 ]
 
+DEFAULT_ITEMS = ["Kinnow", "Malta", "Apple", "Mango"]
 DEFAULT_BRANDS = ["Eagle", "KGR", "Star", "Royal"]
 DEFAULT_VARIETIES = ["60 PCS", "72 PCS", "84 PCS", "96 PCS"]
 DEFAULT_QUALITIES = ["HD Green", "Standard", "Export"]
@@ -62,6 +64,9 @@ def run():
         # Seeded independently of the guard below, so re-running this against
         # an already-seeded database (e.g. right after deploying this feature)
         # still populates these new tables without touching anything else.
+        if db.query(Item).count() == 0:
+            for name in DEFAULT_ITEMS:
+                db.add(Item(name=name, is_active=True))
         if db.query(Brand).count() == 0:
             for name in DEFAULT_BRANDS:
                 db.add(Brand(name=name, is_active=True))

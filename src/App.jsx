@@ -30,7 +30,7 @@ import AdminHome from "./views/AdminHome";
 
 import { api, setToken } from "./api";
 import { todayStr, shiftDate } from "./utils";
-import { downloadChallanPdf, printChallanPdf } from "./challanPdf";
+import { downloadChallanPdf, printChallanPdf, downloadSummaryPdf } from "./challanPdf";
 
 /* =====================================================
    API <-> UI SHAPE MAPPERS
@@ -96,6 +96,12 @@ const mapUser = (u) => ({
   packhouseId: u.packhouse ? u.packhouse.id : null,
   status: u.is_active ? "Active" : "Inactive",
 });
+
+// "Malta " for non-Kinnow lines in WhatsApp texts (Kinnow is the default item, so it isn't repeated).
+const itemPrefix = (line) => {
+  const name = (line.item || "").trim();
+  return name && name.toLowerCase() !== "kinnow" ? `${name} ` : "";
+};
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -168,6 +174,7 @@ function AdminApp({ session, onLogout, toast, showToast }) {
   const [customers, setCustomers] = useState([]);
   const [payments, setPayments] = useState([]);
   const [brands, setBrands] = useState([]);
+  const [itemOptions, setItemOptions] = useState([]);
   const [varieties, setVarieties] = useState([]);
   const [qualities, setQualities] = useState([]);
   const [bookEditOrder, setBookEditOrder] = useState(null);
@@ -185,7 +192,7 @@ function AdminApp({ session, onLogout, toast, showToast }) {
     let cancelled = false;
     async function load() {
       try {
-        const [ph, u, ord, cust, pay, br, vr, ql] = await Promise.all([
+        const [ph, u, ord, cust, pay, br, vr, ql, itm] = await Promise.all([
           api.listPackhouses(),
           api.listUsers(),
           api.listOrders(),
@@ -194,6 +201,7 @@ function AdminApp({ session, onLogout, toast, showToast }) {
           api.listBrands(),
           api.listVarieties(),
           api.listQualities(),
+          api.listItems().catch(() => []), // an older server without /items must not break the whole screen
         ]);
         if (cancelled) return;
         setPackhouses(ph);
@@ -204,6 +212,7 @@ function AdminApp({ session, onLogout, toast, showToast }) {
         setBrands(br);
         setVarieties(vr);
         setQualities(ql);
+        setItemOptions(itm);
       } catch (e) {
         if (!cancelled) showToast(e.message);
       }
@@ -325,6 +334,28 @@ function AdminApp({ session, onLogout, toast, showToast }) {
     }
   }
 
+  async function handleDownloadSummary(date) {
+    try {
+      showToast("Preparing PDF…");
+      await downloadSummaryPdf(date);
+    } catch (e) {
+      showToast(e.message);
+    }
+  }
+
+  // Returns true when saved, so the edit sheet knows it can close.
+  async function handleUpdateCustomer(id, payload) {
+    try {
+      await api.updateCustomer(id, payload);
+      showToast("Customer updated ✓");
+      bump();
+      return true;
+    } catch (e) {
+      showToast(e.message);
+      return false;
+    }
+  }
+
   function handleClickBooked() {
     setOrderFilterPreset({ status: "All", todayOnly: true });
     setActiveTab("orders");
@@ -341,7 +372,7 @@ function AdminApp({ session, onLogout, toast, showToast }) {
       showToast("No staff mobile number found for this packhouse");
       return;
     }
-    const lines = order.items.map((i) => `• ${i.brand} ${i.variety} – ${i.quality} – ${i.qty} crates`).join("\n");
+    const lines = order.items.map((i) => `• ${itemPrefix(i)}${i.brand} ${i.variety} – ${i.quality} – ${i.qty} crates`).join("\n");
     const tonnageLine = order.truck_tonnage ? `\nTonnage: ${order.truck_tonnage} MT` : "";
     const totalCr = order.items.reduce((s, i) => s + Number(i.qty || 0), 0);
     const customerLabel = order.customer.city ? `${order.customer.name}, ${order.customer.city}` : order.customer.name;
@@ -356,7 +387,7 @@ function AdminApp({ session, onLogout, toast, showToast }) {
       return;
     }
     const lines = order.items
-      .map((i) => `• ${i.brand} ${i.variety} – ${i.quality} – ${i.qty} crates${i.rate ? ` @ ₹${i.rate}` : ""}`)
+      .map((i) => `• ${itemPrefix(i)}${i.brand} ${i.variety} – ${i.quality} – ${i.qty} crates${i.rate ? ` @ ₹${i.rate}` : ""}`)
       .join("\n");
     const tonnageLine = order.truck_tonnage ? `\nTonnage: ${order.truck_tonnage} MT` : "";
     const totalCr = order.items.reduce((s, i) => s + Number(i.qty || 0), 0);
@@ -489,6 +520,7 @@ function AdminApp({ session, onLogout, toast, showToast }) {
                 onUploadFile={handleUploadOrderFile}
                 onDownloadChallan={handleDownloadChallan}
                 onPrintChallan={handlePrintChallan}
+                onDownloadSummary={handleDownloadSummary}
                 isAdmin
                 onWhatsAppPackhouse={handleWhatsAppPackhouse}
                 onWhatsAppCustomer={handleWhatsAppCustomer}
@@ -506,10 +538,12 @@ function AdminApp({ session, onLogout, toast, showToast }) {
                 brands={brands}
                 varieties={varieties}
                 qualities={qualities}
+                itemOptions={itemOptions}
                 editingOrder={bookEditOrder}
                 onBookOrder={handleBookOrder}
                 onUpdateOrder={handleUpdateOrder}
                 onCancelEdit={handleCancelEdit}
+                onUpdateCustomer={handleUpdateCustomer}
               />
             )}
 
@@ -773,6 +807,23 @@ function WorkerApp({ session, onLogout, toast, showToast }) {
     return updated;
   }
 
+  async function handleDownloadChallan(order) {
+    try {
+      showToast("Preparing PDF…");
+      await downloadChallanPdf(order);
+    } catch (e) {
+      showToast(e.message);
+    }
+  }
+
+  async function handlePrintChallan(order) {
+    try {
+      await printChallanPdf(order);
+    } catch (e) {
+      showToast(e.message);
+    }
+  }
+
   async function handleOrderStatusChange(id, status) {
     try {
       await api.updateOrderStatus(id, status);
@@ -827,6 +878,8 @@ function WorkerApp({ session, onLogout, toast, showToast }) {
                 onStatusChange={handleOrderStatusChange}
                 onSaveChallan={handleSaveChallan}
                 onUploadFile={handleUploadOrderFile}
+                onDownloadChallan={handleDownloadChallan}
+                onPrintChallan={handlePrintChallan}
                 isAdmin={false}
               />
             )}

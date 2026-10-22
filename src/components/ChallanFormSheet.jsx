@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { X, Truck, Camera, FileCheck2 } from "lucide-react";
+import { cleanMobile } from "../mobile";
 
 function ChallanFormSheet({ open, order, onClose, onSave, onUploadFile }) {
   const [form, setForm] = useState(() => ({
@@ -44,6 +45,7 @@ function ChallanFormSheet({ open, order, onClose, onSave, onUploadFile }) {
 
   async function handleSave() {
     if (!form.truck.trim()) return alert("Enter the truck number");
+    if (form.driver_mobile && form.driver_mobile.length !== 10) return alert("Driver mobile must be exactly 10 digits");
     await onSave(order.id, {
       truck: form.truck.trim(),
       driver: form.driver.trim() || null,
@@ -87,7 +89,14 @@ function ChallanFormSheet({ open, order, onClose, onSave, onUploadFile }) {
 
           <div className="book-form-group">
             <label className="book-form-label">Driver Mobile</label>
-            <input className="book-form-control" type="tel" value={form.driver_mobile} onChange={(e) => setF("driver_mobile", e.target.value)} placeholder="e.g. 9XXXXXXXXX" />
+            <input
+              className="book-form-control"
+              type="tel"
+              inputMode="numeric"
+              value={form.driver_mobile}
+              onChange={(e) => setF("driver_mobile", cleanMobile(e.target.value))}
+              placeholder="10 digits, e.g. 9XXXXXXXXX"
+            />
           </div>
 
           <div className="book-form-group">

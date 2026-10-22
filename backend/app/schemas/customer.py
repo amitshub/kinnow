@@ -1,4 +1,6 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
+
+from app.schemas.validators import ten_digit_mobile
 
 
 class CustomerCreate(BaseModel):
@@ -8,6 +10,11 @@ class CustomerCreate(BaseModel):
     address: str | None = None
     gst_number: str | None = None
 
+    @field_validator("mobile")
+    @classmethod
+    def _check_mobile(cls, v):
+        return ten_digit_mobile(v)
+
 
 class CustomerUpdate(BaseModel):
     name: str
@@ -15,6 +22,11 @@ class CustomerUpdate(BaseModel):
     city: str | None = None
     address: str | None = None
     gst_number: str | None = None
+
+    @field_validator("mobile")
+    @classmethod
+    def _check_mobile(cls, v):
+        return ten_digit_mobile(v)
 
 
 class CustomerOut(BaseModel):

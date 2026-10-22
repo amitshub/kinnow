@@ -6,6 +6,9 @@ function totalCrates(order) {
   return order.items.reduce((total, item) => total + Number(item.qty || 0), 0);
 }
 
+const todayLabel = () =>
+  new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
 const AdminHome = ({ adminName, orders = [], onNewOrder, onOrderList, onClickBooked, onClickDispatched }) => {
   const today = todayStr();
   const todaysOrders = orders.filter((o) => o.order_date === today);
@@ -23,6 +26,9 @@ const AdminHome = ({ adminName, orders = [], onNewOrder, onOrderList, onClickBoo
       </div>
 
       <div className="home-banner">
+        <div style={{ position: "relative", zIndex: 1, fontSize: 12, fontWeight: 600, opacity: 0.92, marginBottom: 6 }}>
+          {todayLabel()}
+        </div>
         <div className="home-banner-title">Manage your orders easily</div>
         <div className="home-banner-text">
           Create orders, track dispatches and manage your customers from one place.
