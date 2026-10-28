@@ -31,6 +31,7 @@ import AdminHome from "./views/AdminHome";
 import { api, setToken } from "./api";
 import { todayStr, shiftDate } from "./utils";
 import { downloadChallanPdf, printChallanPdf, downloadSummaryPdf } from "./challanPdf";
+import { SHOW_PRICE } from "./features";
 
 /* =====================================================
    API <-> UI SHAPE MAPPERS
@@ -47,6 +48,8 @@ const mapGrower = (g) => ({
   address: g.address || "",
   mob: g.mobile || "",
   account: g.account || "",
+  accountNumber: g.account_number || "",
+  ifsc: g.ifsc_code || "",
 });
 
 const mapIncoming = (i) => ({
@@ -361,8 +364,33 @@ function AdminApp({ session, onLogout, toast, showToast }) {
     setActiveTab("orders");
   }
 
+  // Returns the saved customer (or null), so the edit sheet can show the new photo.
+  async function handleUploadCustomerCard(id, file) {
+    try {
+      const updated = await api.uploadCustomerCard(id, file);
+      showToast("Business card saved ✓");
+      bump();
+      return updated;
+    } catch (e) {
+      showToast(e.message);
+      return null;
+    }
+  }
+
+  async function handleDeleteCustomerCard(id) {
+    try {
+      await api.deleteCustomerCard(id);
+      showToast("Business card removed");
+      bump();
+      return true;
+    } catch (e) {
+      showToast(e.message);
+      return false;
+    }
+  }
+
   function handleClickDispatched() {
-    setOrderFilterPreset({ status: "Dispatched", todayOnly: true });
+    setOrderFilterPreset({ status: "Dispatched", todayOnly: true, dateMode: "dispatched" });
     setActiveTab("orders");
   }
 
@@ -387,7 +415,7 @@ function AdminApp({ session, onLogout, toast, showToast }) {
       return;
     }
     const lines = order.items
-      .map((i) => `• ${itemPrefix(i)}${i.brand} ${i.variety} – ${i.quality} – ${i.qty} crates${i.rate ? ` @ ₹${i.rate}` : ""}`)
+      .map((i) => `• ${itemPrefix(i)}${i.brand} ${i.variety} – ${i.quality} – ${i.qty} crates${SHOW_PRICE && i.rate ? ` @ ₹${i.rate}` : ""}`)
       .join("\n");
     const tonnageLine = order.truck_tonnage ? `\nTonnage: ${order.truck_tonnage} MT` : "";
     const totalCr = order.items.reduce((s, i) => s + Number(i.qty || 0), 0);
@@ -446,10 +474,18 @@ function AdminApp({ session, onLogout, toast, showToast }) {
   async function handleBookOrder(payload) {
     try {
       let customerId = payload.customer_id;
+      let cardNote = "";
       if (!customerId && payload.new_customer) {
         const created = await api.createCustomer(payload.new_customer);
         customerId = created.id;
         setCustomers((list) => [...list, created]);
+        if (payload.card_file) {
+          try {
+            await api.uploadCustomerCard(created.id, payload.card_file);
+          } catch (e) {
+            cardNote = ` (business card not saved: ${e.message})`; // the customer and order still go through
+          }
+        }
       }
       await api.createOrder(
         {
@@ -461,7 +497,7 @@ function AdminApp({ session, onLogout, toast, showToast }) {
         },
         payload.packhouse_id
       );
-      showToast("Order booked ✓");
+      showToast(`Order booked ✓${cardNote}`);
       bump();
       setActiveTab("orders");
     } catch (e) {
@@ -528,6 +564,7 @@ function AdminApp({ session, onLogout, toast, showToast }) {
                 onDeleteOrder={handleDeleteOrder}
                 presetStatusFilter={orderFilterPreset?.status}
                 presetTodayOnly={orderFilterPreset?.todayOnly}
+                presetDateMode={orderFilterPreset?.dateMode}
               />
             )}
 
@@ -544,6 +581,8 @@ function AdminApp({ session, onLogout, toast, showToast }) {
                 onUpdateOrder={handleUpdateOrder}
                 onCancelEdit={handleCancelEdit}
                 onUpdateCustomer={handleUpdateCustomer}
+                onUploadCustomerCard={handleUploadCustomerCard}
+                onDeleteCustomerCard={handleDeleteCustomerCard}
               />
             )}
 
@@ -604,6 +643,7 @@ function WorkerApp({ session, onLogout, toast, showToast }) {
   const [daySummaries, setDaySummaries] = useState([]);
   const [paymentRequests, setPaymentRequests] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [catalog, setCatalog] = useState({ items: [], brands: [], varieties: [], qualities: [] }); // choices for "Edit Order Items"
   const [version, setVersion] = useState(0);
   const bump = () => setVersion((v) => v + 1);
 
@@ -611,14 +651,19 @@ function WorkerApp({ session, onLogout, toast, showToast }) {
     let cancelled = false;
     async function load() {
       try {
-        const [g, inc, ds, pr, ord] = await Promise.all([
+        const [g, inc, ds, pr, ord, itm, br, vr, ql] = await Promise.all([
           api.listGrowers(),
           api.listIncoming(),
           api.listDaySummaries(),
           api.listPayments(),
           api.listOrders(),
+          api.listItems().catch(() => []),
+          api.listBrands().catch(() => []),
+          api.listVarieties().catch(() => []),
+          api.listQualities().catch(() => []),
         ]);
         if (cancelled) return;
+        setCatalog({ items: itm, brands: br, varieties: vr, qualities: ql });
         setGrowers(g.map(mapGrower));
         setIncoming(inc.map(mapIncoming));
         setDaySummaries(ds.map(mapDaySummary));
@@ -736,7 +781,15 @@ function WorkerApp({ session, onLogout, toast, showToast }) {
   async function saveGrower(payload, errorMsg) {
     if (errorMsg) return showToast(errorMsg);
     const { editId } = growerFormSheet;
-    const body = { name: payload.name, address: payload.address, city: payload.city, mobile: payload.mob, account: payload.account };
+    const body = {
+      name: payload.name,
+      address: payload.address,
+      city: payload.city,
+      mobile: payload.mob,
+      account: payload.account,
+      account_number: payload.account_number || null,
+      ifsc_code: payload.ifsc_code || null,
+    };
     try {
       if (editId) {
         await api.updateGrower(editId, body);
@@ -824,6 +877,19 @@ function WorkerApp({ session, onLogout, toast, showToast }) {
     }
   }
 
+  // Packhouse corrects the lines of an order (what is really being loaded). Returns true when saved.
+  async function handleSaveOrderItems(orderId, items) {
+    try {
+      await api.updateOrderItems(orderId, items);
+      showToast("Order updated ✓");
+      bump();
+      return true;
+    } catch (e) {
+      showToast(e.message);
+      return false;
+    }
+  }
+
   async function handleOrderStatusChange(id, status) {
     try {
       await api.updateOrderStatus(id, status);
@@ -880,6 +946,8 @@ function WorkerApp({ session, onLogout, toast, showToast }) {
                 onUploadFile={handleUploadOrderFile}
                 onDownloadChallan={handleDownloadChallan}
                 onPrintChallan={handlePrintChallan}
+                onSaveItems={handleSaveOrderItems}
+                catalog={catalog}
                 isAdmin={false}
               />
             )}

@@ -353,16 +353,16 @@ def challan_filename(order, *, print_mode: bool) -> str:
 
 # ---- Orders-screen summary ---------------------------------------------------
 def build_summary_pdf(day, orders) -> bytes:
-    """Plain PDF of the summary grid: Customer Name | Location | Packhouse, with the date."""
+    """Plain PDF of the dispatch summary: Customer Name | Location | Packhouse for the orders dispatched on `day`."""
     from reportlab.platypus import SimpleDocTemplate
 
     buf = BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=A4, leftMargin=15 * mm, rightMargin=15 * mm, topMargin=15 * mm, bottomMargin=15 * mm,
-        title=f"Order Summary {day.strftime('%d-%m-%Y')}", author="Shiv Bhola Group",
+        title=f"Dispatch Summary {day.strftime('%d-%m-%Y')}", author="Shiv Bhola Group",
     )
     story = [
-        _p("Order Summary", S_TITLE),
+        _p("Dispatch Summary", S_TITLE),
         _p(f"Date: {day.strftime('%d-%m-%Y')} ({day.strftime('%A')})", S_SUB),
         Spacer(1, 6 * mm),
     ]
@@ -382,8 +382,8 @@ def build_summary_pdf(day, orders) -> bytes:
             ("TOPPADDING", (0, 0), (-1, -1), 3),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
         ]))
-        story += [tbl, Spacer(1, 4 * mm), _p(f"Total orders: {len(orders)}", S_LABEL)]
+        story += [tbl, Spacer(1, 4 * mm), _p(f"Total dispatched: {len(orders)}", S_LABEL)]
     else:
-        story.append(_p("No orders booked on this date.", S_VALUE))
+        story.append(_p("No orders dispatched on this date.", S_VALUE))
     doc.build(story)
     return buf.getvalue()

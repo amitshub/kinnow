@@ -48,7 +48,7 @@ class Order(Base):
 
     customer = relationship("Customer", back_populates="orders")
     packhouse = relationship("Packhouse")
-    items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
+    items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan", order_by="OrderItem.id")  # stable order: lines keep the order they were added in
 
 
 class OrderItem(Base):

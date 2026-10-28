@@ -205,6 +205,25 @@ export const api = {
     }
     return res.blob();
   },
+  updateOrderItems(orderId, items) {
+    return request(`/orders/${orderId}/items`, { method: "PUT", body: { items } });
+  },
+  uploadCustomerCard(customerId, file) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return request(`/customers/${customerId}/card`, { method: "POST", body: formData, isForm: true });
+  },
+  deleteCustomerCard(customerId) {
+    return request(`/customers/${customerId}/card`, { method: "DELETE" });
+  },
+  async getCustomerCard(customerId) {
+    const token = getToken();
+    const res = await fetch(`${API_URL}/customers/${customerId}/card`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new ApiError(`Could not load the business card (${res.status})`, res.status);
+    return res.blob();
+  },
   async getSummaryPdf(date) {
     const token = getToken();
     const res = await fetch(`${API_URL}/orders/summary-pdf?date=${encodeURIComponent(date)}`, {

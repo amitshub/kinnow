@@ -37,3 +37,4 @@ class CustomerOut(BaseModel):
     city: str | None = None
     address: str | None = None
     gst_number: str | None = None
+    has_card: bool = False

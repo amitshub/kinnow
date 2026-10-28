@@ -1,6 +1,6 @@
 from datetime import date, time
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.order import OrderStatus
 from app.schemas.customer import CustomerOut
@@ -19,6 +19,22 @@ class OrderItemIn(BaseModel):
 class OrderItemOut(OrderItemIn):
     model_config = ConfigDict(from_attributes=True)
     id: int
+
+
+class OrderItemEdit(BaseModel):
+    """One line in a packhouse edit. `id` is the existing line to change; no `id` means a new line.
+    Rates are deliberately not part of this: packhouse users never see or change prices."""
+
+    id: int | None = None
+    item: str | None = "Kinnow"
+    brand: str
+    variety: str
+    quality: str
+    qty: int = Field(gt=0)
+
+
+class OrderItemsUpdate(BaseModel):
+    items: list[OrderItemEdit]
 
 
 class OrderCreate(BaseModel):

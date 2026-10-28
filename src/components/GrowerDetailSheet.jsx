@@ -36,6 +36,8 @@ export default function GrowerDetailSheet({ open, grower, totals, onClose, onEdi
               <span className="detail-key"><CreditCard size={12} style={{ verticalAlign: -1, marginRight: 4 }} />Account</span>
               <span className="detail-val">{grower.account}</span>
             </div>
+            <div className="detail-row"><span className="detail-key">Account No.</span><span className="detail-val">{grower.accountNumber || "—"}</span></div>
+            <div className="detail-row"><span className="detail-key">IFSC Code</span><span className="detail-val">{grower.ifsc || "—"}</span></div>
 
             <div className="divider" />
 

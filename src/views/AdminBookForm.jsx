@@ -1,18 +1,22 @@
 import React, { useEffect, useState } from "react";
-import { Plus, X, Send, MessageCircle, Building2, UserPlus, Check, Pencil } from "lucide-react";
+import { Plus, X, Send, MessageCircle, Building2, UserPlus, Check, Pencil, Camera } from "lucide-react";
 import { todayStr } from "../utils";
 import EditCustomerSheet from "../components/EditCustomerSheet";
 import { cleanMobile } from "../mobile";
+import { SHOW_PRICE } from "../features";
+import { shrinkImage } from "../imageUtils";
 
 const FALLBACK_ITEMS = ["Kinnow", "Malta", "Apple", "Mango"];
 
-function AdminBookForm({ customers, packhouses, brands, varieties, qualities, itemOptions, editingOrder, onBookOrder, onUpdateOrder, onCancelEdit, onUpdateCustomer }) {
+function AdminBookForm({ customers, packhouses, brands, varieties, qualities, itemOptions, editingOrder, onBookOrder, onUpdateOrder, onCancelEdit, onUpdateCustomer, onUploadCustomerCard, onDeleteCustomerCard }) {
   const [customerMode, setCustomerMode] = useState("existing"); // "existing" | "new"
   const [existingCustomerId, setExistingCustomerId] = useState("");
   const [newName, setNewName] = useState("");
   const [newMobile, setNewMobile] = useState("");
   const [newCity, setNewCity] = useState("");
   const [newAddress, setNewAddress] = useState("");
+  const [cardFile, setCardFile] = useState(null); // photo of the new customer's business card (optional)
+  const [cardPreview, setCardPreview] = useState(null);
 
   const [packhouseId, setPackhouseId] = useState(packhouses[0]?.id || "");
   const [truckTonnage, setTruckTonnage] = useState("");
@@ -77,6 +81,24 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, it
     setRate("");
   }
 
+  async function pickCard(file) {
+    if (!file) return;
+    const prepared = await shrinkImage(file);
+    setCardFile(prepared);
+    setCardPreview((old) => {
+      if (old) URL.revokeObjectURL(old);
+      return URL.createObjectURL(prepared);
+    });
+  }
+
+  function clearCard() {
+    setCardFile(null);
+    setCardPreview((old) => {
+      if (old) URL.revokeObjectURL(old);
+      return null;
+    });
+  }
+
   function removeItem(index) {
     setItems((list) => list.filter((_, i) => i !== index));
   }
@@ -91,7 +113,7 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, it
 
   const itemPrefix = (line) => (line.item && line.item.toLowerCase() !== "kinnow" ? `${line.item} ` : "");
   const customerItemLines = items
-    .map((line) => `• ${itemPrefix(line)}${line.brand} ${line.variety} – ${line.quality} – ${line.qty} crates${line.rate ? ` @ ₹${line.rate}` : ""}`)
+    .map((line) => `• ${itemPrefix(line)}${line.brand} ${line.variety} – ${line.quality} – ${line.qty} crates${SHOW_PRICE && line.rate ? ` @ ₹${line.rate}` : ""}`)
     .join("\n");
   const packhouseItemLines = items
     .map((line) => `• ${itemPrefix(line)}${line.brand} ${line.variety} – ${line.quality} – ${line.qty} crates`)
@@ -109,6 +131,7 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, it
         customerMode === "new"
           ? { name: newName.trim(), mobile: newMobile.trim() || null, city: newCity.trim() || null, address: newAddress.trim() || null }
           : null,
+      card_file: customerMode === "new" ? cardFile : null,
       order_date: editingOrder ? editingOrder.order_date : todayStr(),
       remarks,
       truck_tonnage: truckTonnage === "" ? null : parseFloat(truckTonnage),
@@ -131,6 +154,7 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, it
     setNewMobile("");
     setNewCity("");
     setNewAddress("");
+    clearCard();
     setPackhouseId(packhouses[0]?.id || "");
     setTruckTonnage("");
     setRemarks("");
@@ -254,6 +278,38 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, it
                   placeholder="e.g. MG Bazar, Kalapatty"
                 />
               </div>
+              <div className="book-form-group" style={{ marginTop: 12, marginBottom: 0 }}>
+                <label className="book-form-label">Business Card (optional)</label>
+                {cardPreview && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                    <img src={cardPreview} alt="Business card" style={{ width: 96, height: 60, objectFit: "cover", borderRadius: 8, border: "1px solid #e5e7eb" }} />
+                    <button
+                      type="button"
+                      onClick={clearCard}
+                      style={{ border: "none", background: "none", color: "#dc2626", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+                <label
+                  htmlFor="new-customer-card"
+                  className="book-form-control"
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, cursor: "pointer" }}
+                >
+                  <Camera size={16} /> {cardFile ? "Retake / Replace card photo" : "Take Photo / Upload card"}
+                </label>
+                <input
+                  id="new-customer-card"
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    pickCard(e.target.files?.[0]);
+                    e.target.value = "";
+                  }}
+                />
+              </div>
             </>
           )}
         </div>
@@ -323,7 +379,7 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, it
                 <div className="book-item-variety">{line.variety}</div>
                 <div className="book-item-quality">
                   {line.quality}
-                  {line.rate ? <div style={{ fontSize: 11, color: "#059669" }}>₹{line.rate}</div> : null}
+                  {SHOW_PRICE && line.rate ? <div style={{ fontSize: 11, color: "#059669" }}>₹{line.rate}</div> : null}
                 </div>
                 <div className="book-item-qty">{line.qty}</div>
                 <button type="button" className="book-delete-btn" onClick={() => removeItem(index)} aria-label="Remove item">
@@ -376,15 +432,17 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, it
             placeholder="Crates"
           />
 
-          <input
-            className="book-form-control"
-            type="number"
-            step="0.01"
-            min="0"
-            value={rate}
-            onChange={(e) => setRate(e.target.value)}
-            placeholder="Rate (optional)"
-          />
+          {SHOW_PRICE && (
+            <input
+              className="book-form-control"
+              type="number"
+              step="0.01"
+              min="0"
+              value={rate}
+              onChange={(e) => setRate(e.target.value)}
+              placeholder="Rate (optional)"
+            />
+          )}
 
           <button type="button" className="book-add-item-btn" onClick={addItem}>
             <Plus size={15} /> Add Item
@@ -465,6 +523,8 @@ function AdminBookForm({ customers, packhouses, brands, varieties, qualities, it
           customer={selectedExisting}
           onClose={() => setEditCustomerOpen(false)}
           onSave={onUpdateCustomer}
+          onUploadCard={onUploadCustomerCard}
+          onDeleteCard={onDeleteCustomerCard}
         />
       )}
     </div>

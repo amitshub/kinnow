@@ -27,11 +27,11 @@ export async function downloadChallanPdf(order) {
   saveBlob(blob, `${fileStem(order)}.pdf`);
 }
 
-// Orders screen "PDF" button: the summary grid for the chosen date (YYYY-MM-DD).
+// Orders screen "PDF" button: the dispatch summary (orders dispatched on the chosen date, YYYY-MM-DD).
 export async function downloadSummaryPdf(date) {
   const blob = await api.getSummaryPdf(date);
   const [y, m, d] = date.split("-");
-  saveBlob(blob, `Summary_${d}-${m}-${y}.pdf`);
+  saveBlob(blob, `Dispatch_Summary_${d}-${m}-${y}.pdf`);
 }
 
 // "Print" button: the challan without artwork and with the margins for the

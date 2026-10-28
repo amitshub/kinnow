@@ -1,10 +1,12 @@
-import React, { useState } from "react";
-import { X, Save } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { X, Save, Camera, Trash2 } from "lucide-react";
+import { api } from "../api";
 import { cleanMobile } from "../mobile";
+import { shrinkImage } from "../imageUtils";
 
 // Rendered only while open (the parent mounts it per customer), so the fields always start
 // with the customer's current details.
-export default function EditCustomerSheet({ customer, onClose, onSave }) {
+export default function EditCustomerSheet({ customer, onClose, onSave, onUploadCard, onDeleteCard }) {
   const [form, setForm] = useState({
     name: customer.name || "",
     mobile: customer.mobile || "",
@@ -12,6 +14,61 @@ export default function EditCustomerSheet({ customer, onClose, onSave }) {
     address: customer.address || "",
   });
   const [saving, setSaving] = useState(false);
+
+  // Business card photo: loaded on demand (it isn't part of the customer list, which keeps that small).
+  const [hasCard, setHasCard] = useState(!!customer.has_card);
+  const [cardUrl, setCardUrl] = useState(null);
+  const [cardBusy, setCardBusy] = useState(false);
+  const [zoom, setZoom] = useState(false);
+
+  useEffect(() => {
+    let url = null;
+    let cancelled = false;
+    if (customer.has_card) {
+      api
+        .getCustomerCard(customer.id)
+        .then((blob) => {
+          if (cancelled) return;
+          url = URL.createObjectURL(blob);
+          setCardUrl(url);
+        })
+        .catch(() => {});
+    }
+    return () => {
+      cancelled = true;
+      if (url) URL.revokeObjectURL(url);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer.id]);
+
+  async function pickCard(file) {
+    if (!file) return;
+    setCardBusy(true);
+    const prepared = await shrinkImage(file);
+    const saved = await onUploadCard(customer.id, prepared);
+    if (saved) {
+      setHasCard(true);
+      setCardUrl((old) => {
+        if (old) URL.revokeObjectURL(old);
+        return URL.createObjectURL(prepared);
+      });
+    }
+    setCardBusy(false);
+  }
+
+  async function removeCard() {
+    if (!window.confirm("Remove this business card photo?")) return;
+    setCardBusy(true);
+    const ok = await onDeleteCard(customer.id);
+    if (ok) {
+      setHasCard(false);
+      setCardUrl((old) => {
+        if (old) URL.revokeObjectURL(old);
+        return null;
+      });
+    }
+    setCardBusy(false);
+  }
 
   const setF = (key, value) => setForm((f) => ({ ...f, [key]: value }));
 
@@ -76,11 +133,62 @@ export default function EditCustomerSheet({ customer, onClose, onSave }) {
             />
           </div>
 
+          <div className="book-form-group">
+            <label className="book-form-label">Business Card</label>
+            {hasCard && cardUrl ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                <img
+                  src={cardUrl}
+                  alt="Business card"
+                  onClick={() => setZoom(true)}
+                  style={{ width: 110, height: 68, objectFit: "cover", borderRadius: 8, border: "1px solid #e5e7eb", cursor: "zoom-in" }}
+                />
+                <button
+                  type="button"
+                  onClick={removeCard}
+                  disabled={cardBusy}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 4, border: "none", background: "none", color: "#dc2626", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                >
+                  <Trash2 size={13} /> Remove
+                </button>
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 8 }}>{hasCard ? "Loading…" : "No business card uploaded yet"}</div>
+            )}
+            <label
+              htmlFor="edit-customer-card"
+              className="book-form-control"
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, cursor: cardBusy ? "default" : "pointer" }}
+            >
+              <Camera size={16} /> {cardBusy ? "Saving…" : hasCard ? "Retake / Replace card photo" : "Take Photo / Upload card"}
+            </label>
+            <input
+              id="edit-customer-card"
+              type="file"
+              accept="image/*"
+              style={{ display: "none" }}
+              disabled={cardBusy}
+              onChange={(e) => {
+                pickCard(e.target.files?.[0]);
+                e.target.value = "";
+              }}
+            />
+          </div>
+
           <button className="book-submit-btn" style={{ marginTop: 8 }} onClick={handleSave} disabled={saving}>
             <Save size={16} /> {saving ? "Saving…" : "Save Customer"}
           </button>
         </div>
       </div>
+
+      {zoom && cardUrl && (
+        <div
+          onClick={() => setZoom(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 99999, background: "rgba(0,0,0,0.88)", display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}
+        >
+          <img src={cardUrl} alt="Business card" style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: 8 }} />
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
-from sqlalchemy import Column, Integer, String
-from sqlalchemy.orm import relationship
+from sqlalchemy import Boolean, Column, Integer, String, Text, false
+from sqlalchemy.orm import deferred, relationship
 from app.db.session import Base
 
 
@@ -10,5 +10,9 @@ class Customer(Base):
     mobile = Column(String(15), nullable=True)
     city = Column(String(120), nullable=True)
     address = Column(String(255), nullable=True)
+    # Photo of the customer's business card, stored as a data URI. `deferred` keeps it out of normal queries
+    # (customer lists and orders) so they stay small; it is only read by the card endpoint.
+    card_image = deferred(Column(Text, nullable=True))
+    has_card = Column(Boolean, nullable=False, default=False, server_default=false())
     gst_number = Column(String(20), nullable=True)
     orders = relationship("Order", back_populates="customer")

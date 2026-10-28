@@ -1,6 +1,7 @@
 import React from "react";
 import { ShoppingCart, Clock, Truck, Plus, Package, ArrowRight } from "lucide-react";
 import { todayStr } from "../utils";
+import { isDispatchedOn } from "../orderDates";
 
 function totalCrates(order) {
   return order.items.reduce((total, item) => total + Number(item.qty || 0), 0);
@@ -14,7 +15,7 @@ const AdminHome = ({ adminName, orders = [], onNewOrder, onOrderList, onClickBoo
   const todaysOrders = orders.filter((o) => o.order_date === today);
   const todaysBooked = todaysOrders.length;
   const todaysPendingConfirmed = todaysOrders.filter((o) => o.status === "Pending" || o.status === "Confirmed").length;
-  const todaysDispatched = todaysOrders.filter((o) => o.status === "Dispatched").length;
+  const todaysDispatched = orders.filter((o) => isDispatchedOn(o, today)).length; // dispatched today, whenever it was booked
 
   const recent = [...orders].sort((a, b) => b.order_date.localeCompare(a.order_date)).slice(0, 3);
 

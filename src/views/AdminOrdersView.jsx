@@ -1,7 +1,10 @@
 import React, { useMemo, useState } from "react";
 import { Search, MapPin, Package, Building2, Check, Clock, X, MessageCircle, Truck, Pencil, Trash2, ShoppingCart, Calendar, FileText, Printer } from "lucide-react";
 import ChallanFormSheet from "../components/ChallanFormSheet";
+import EditOrderItemsSheet from "../components/EditOrderItemsSheet";
 import { todayStr } from "../utils";
+import { SHOW_PRICE } from "../features";
+import { isDispatchedOn } from "../orderDates";
 
 // "Malta · " etc. Kinnow is the default item, so it isn't repeated on every line.
 function itemTag(line) {
@@ -42,6 +45,8 @@ export default function AdminOrdersView({
   onDownloadChallan,
   onPrintChallan,
   onDownloadSummary,
+  onSaveItems,
+  catalog,
   isAdmin,
   onWhatsAppPackhouse,
   onWhatsAppCustomer,
@@ -49,11 +54,15 @@ export default function AdminOrdersView({
   onDeleteOrder,
   presetStatusFilter,
   presetTodayOnly,
+  presetDateMode,
 }) {
   const today = todayStr();
   const [filter, setFilter] = useState(presetStatusFilter || "All");
   const [selectedDate, setSelectedDate] = useState(today);
   const [dateOnly, setDateOnly] = useState(!!presetTodayOnly);
+  // Which date the "date only" filter looks at: when the order was booked, or when it was dispatched.
+  const [dateMode, setDateMode] = useState(presetDateMode || "booked");
+  const [itemsOrder, setItemsOrder] = useState(null);
   const [search, setSearch] = useState("");
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [challanOrder, setChallanOrder] = useState(null);
@@ -63,11 +72,12 @@ export default function AdminOrdersView({
   const dayOrders = useMemo(() => orders.filter((o) => o.order_date === selectedDate), [orders, selectedDate]);
   const dayBooked = dayOrders.length;
   const dayPendingConfirmed = dayOrders.filter((o) => o.status === "Pending" || o.status === "Confirmed").length;
-  const dayDispatched = dayOrders.filter((o) => o.status === "Dispatched").length;
+  const dispatchedOnDay = useMemo(() => orders.filter((o) => isDispatchedOn(o, selectedDate)), [orders, selectedDate]);
+  const dayDispatched = dispatchedOnDay.length;
 
   const filteredOrders = useMemo(() => {
     let list = orders;
-    if (dateOnly) list = list.filter((o) => o.order_date === selectedDate);
+    if (dateOnly) list = list.filter((o) => (dateMode === "dispatched" ? isDispatchedOn(o, selectedDate) : o.order_date === selectedDate));
     if (filter !== "All") {
       list = list.filter((order) => order.status === filter);
     }
@@ -81,7 +91,7 @@ export default function AdminOrdersView({
       );
     }
     return list;
-  }, [orders, filter, search, dateOnly, selectedDate]);
+  }, [orders, filter, search, dateOnly, dateMode, selectedDate]);
 
   function handleStatusChange(id, status) {
     onStatusChange(id, status);
@@ -107,12 +117,20 @@ export default function AdminOrdersView({
 
   function clickBooked() {
     setFilter("All");
+    setDateMode("booked");
     setDateOnly(true);
   }
 
   function clickDispatched() {
     setFilter("Dispatched");
+    setDateMode("dispatched");
     setDateOnly(true);
+  }
+
+  async function handleSaveItems(orderId, lines) {
+    const ok = await onSaveItems(orderId, lines);
+    if (ok) setSelectedOrder(null);
+    return ok;
   }
 
   return (
@@ -188,7 +206,7 @@ export default function AdminOrdersView({
           ))}
           {dateOnly && (
             <button className="active" onClick={() => setDateOnly(false)} style={{ background: "#9333ea", borderColor: "#9333ea" }}>
-              {isToday ? "Today" : selectedDate} only ×
+              {dateMode === "dispatched" ? "Dispatched" : "Booked"} {isToday ? "today" : selectedDate} ×
             </button>
           )}
         </div>
@@ -196,16 +214,16 @@ export default function AdminOrdersView({
         {isAdmin && (
           <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, marginBottom: 12, overflow: "hidden" }}>
             <div style={{ padding: "10px 12px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #e5e7eb" }}>
-              <strong style={{ fontSize: 13 }}>{isToday ? "Today's Summary" : `Summary – ${selectedDate}`}</strong>
+              <strong style={{ fontSize: 13 }}>{isToday ? "Today's Dispatch Summary" : `Dispatch Summary – ${selectedDate}`}</strong>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: 12, color: "#6b7280" }}>
-                {dayBooked} {dayBooked === 1 ? "order" : "orders"}
+                {dayDispatched} dispatched
                 <button type="button" style={{ ...cardBtn, padding: "4px 10px" }} onClick={() => onDownloadSummary(selectedDate)}>
                   <FileText size={13} /> PDF
                 </button>
               </span>
             </div>
-            {dayOrders.length === 0 ? (
-              <div style={{ padding: "14px 12px", fontSize: 12, color: "#9ca3af" }}>No orders booked on this date.</div>
+            {dispatchedOnDay.length === 0 ? (
+              <div style={{ padding: "14px 12px", fontSize: 12, color: "#9ca3af" }}>No orders dispatched on this date.</div>
             ) : (
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                 <thead>
@@ -216,7 +234,7 @@ export default function AdminOrdersView({
                   </tr>
                 </thead>
                 <tbody>
-                  {dayOrders.map((o) => (
+                  {dispatchedOnDay.map((o) => (
                     <tr key={o.id} style={{ borderTop: "1px solid #f1f5f9" }}>
                       <td style={gridTd}>{o.customer.name}</td>
                       <td style={gridTd}>{o.customer.city || "—"}</td>
@@ -259,7 +277,7 @@ export default function AdminOrdersView({
                       <span>
                         {itemTag(item)}
                         <strong>{item.brand}</strong> {item.variety} · {item.quality}
-                        {item.rate ? ` · ₹${item.rate}` : ""}
+                        {SHOW_PRICE && item.rate ? ` · ₹${item.rate}` : ""}
                       </span>
                       <strong>{item.qty} cr</strong>
                     </div>
@@ -309,6 +327,17 @@ export default function AdminOrdersView({
           onWhatsAppCustomer={onWhatsAppCustomer}
           onEdit={() => handleEdit(selectedOrder)}
           onDelete={() => handleDelete(selectedOrder)}
+          onEditItems={() => setItemsOrder(selectedOrder)}
+        />
+      )}
+
+      {itemsOrder && (
+        <EditOrderItemsSheet
+          key={itemsOrder.id}
+          order={itemsOrder}
+          catalog={catalog || {}}
+          onClose={() => setItemsOrder(null)}
+          onSave={handleSaveItems}
         />
       )}
 
@@ -337,6 +366,7 @@ function OrderDetailSheet({
   onWhatsAppCustomer,
   onEdit,
   onDelete,
+  onEditItems,
 }) {
   const hasChallan = !!order.truck;
   const isPending = order.status === "Pending";
@@ -378,7 +408,7 @@ function OrderDetailSheet({
               <DetailRow
                 key={index}
                 label={`${itemTag(item)}${item.brand} ${item.variety} · ${item.quality}`}
-                value={item.rate ? `${item.qty} crates @ ₹${item.rate}` : `${item.qty} crates`}
+                value={SHOW_PRICE && item.rate ? `${item.qty} crates @ ₹${item.rate}` : `${item.qty} crates`}
               />
             ))}
           </div>
@@ -459,6 +489,12 @@ function OrderDetailSheet({
                 <Trash2 size={16} /> Delete Order
               </button>
             </div>
+          )}
+
+          {!isAdmin && order.status !== "Cancelled" && (
+            <button className="admin-whatsapp-btn" style={{ marginBottom: 10 }} onClick={onEditItems}>
+              <Pencil size={17} /> Edit Order Items
+            </button>
           )}
 
           <button className="admin-whatsapp-btn" style={{ marginBottom: isAdmin ? 10 : 0 }} onClick={onOpenChallan}>

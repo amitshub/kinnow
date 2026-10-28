@@ -2,6 +2,7 @@ import base64
 from datetime import date as date_type
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Response, UploadFile, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_user, get_db, require_admin
@@ -10,7 +11,7 @@ from app.crud.codes import next_code
 from app.models.customer import Customer
 from app.models.order import Order, OrderItem, OrderStatus
 from app.models.user import User, UserRole
-from app.schemas.order import ChallanUpdate, OrderCreate, OrderOut, StatusUpdate
+from app.schemas.order import ChallanUpdate, OrderCreate, OrderItemsUpdate, OrderOut, StatusUpdate
 from app.services.challan_pdf import build_challan_pdf, build_summary_pdf, challan_filename
 from app.services.whatsapp import send_order_assigned_notification, send_order_dispatched_notification
 
@@ -20,6 +21,16 @@ router = APIRouter(prefix="/orders", tags=["orders"])
 def _ensure_order_access(current_user: User, order: Order) -> None:
     if current_user.role != UserRole.admin and current_user.packhouse_id != order.packhouse_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed")
+
+
+def _order_out_for(user: User, order: Order) -> OrderOut:
+    """The order as the API returns it. Prices (the per-line rate) are only for admins: packhouse users
+    get them blanked here, so they can't be read from the network response either."""
+    out = OrderOut.model_validate(order)
+    if user.role != UserRole.admin:
+        for line in out.items:
+            line.rate = None
+    return out
 
 
 @router.get("", response_model=list[OrderOut])
@@ -44,7 +55,7 @@ def list_orders(
 
     if status_filter:
         q = q.filter(Order.status == status_filter)
-    return q.order_by(Order.order_date.desc(), Order.id.desc()).all()
+    return [_order_out_for(current_user, o) for o in q.order_by(Order.order_date.desc(), Order.id.desc()).all()]
 
 
 @router.post("", response_model=OrderOut, status_code=status.HTTP_201_CREATED)
@@ -176,7 +187,7 @@ def update_status(
     order.status = payload.status
     db.commit()
     db.refresh(order)
-    return order
+    return _order_out_for(current_user, order)
 
 
 @router.patch("/{order_id}/challan", response_model=OrderOut)
@@ -211,7 +222,67 @@ def update_challan(
     if not was_dispatched and current_user.role != UserRole.admin:
         background_tasks.add_task(send_order_dispatched_notification, order.id)
 
-    return order
+    return _order_out_for(current_user, order)
+
+
+@router.put("/{order_id}/items", response_model=OrderOut)
+def update_order_items(
+    order_id: int,
+    payload: OrderItemsUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Change the order lines (item, brand, variety, quality, crates) of an order.
+
+    This is how a packhouse user corrects an order when what is actually loaded differs from what was
+    ordered. It works on their own packhouse's orders, as many times as needed, in any status except
+    Cancelled. Existing lines are updated in place (so their rates are kept), lines left out are removed,
+    and lines without an id are added."""
+    order = (
+        db.query(Order)
+        .options(joinedload(Order.items), joinedload(Order.packhouse), joinedload(Order.customer))
+        .filter(Order.id == order_id)
+        .first()
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    _ensure_order_access(current_user, order)
+    if order.status == OrderStatus.cancelled:
+        raise HTTPException(status_code=400, detail="A cancelled order can't be edited")
+    if not payload.items:
+        raise HTTPException(status_code=400, detail="An order needs at least one item")
+
+    existing = {line.id: line for line in order.items}
+    kept: set[int] = set()
+    for line in payload.items:
+        target = existing.get(line.id) if line.id is not None else None
+        if line.id is not None and target is None:
+            raise HTTPException(status_code=400, detail="One of the items doesn't belong to this order")
+        if target is not None:
+            target.item = line.item or "Kinnow"
+            target.brand = line.brand
+            target.variety = line.variety
+            target.quality = line.quality
+            target.qty = line.qty
+            kept.add(target.id)
+        else:
+            db.add(
+                OrderItem(
+                    order_id=order.id,
+                    item=line.item or "Kinnow",
+                    brand=line.brand,
+                    variety=line.variety,
+                    quality=line.quality,
+                    qty=line.qty,
+                )
+            )
+    for line_id, line in existing.items():
+        if line_id not in kept:
+            db.delete(line)
+
+    db.commit()
+    db.refresh(order)
+    return _order_out_for(current_user, order)
 
 
 @router.get("/summary-pdf")
@@ -220,11 +291,13 @@ def summary_pdf(
     db: Session = Depends(get_db),
     _admin: User = Depends(require_admin),
 ):
-    """The Orders screen's summary grid (Customer | Location | Packhouse) for one date, as a plain PDF. Admin only."""
+    """The Orders screen's dispatch summary (Customer | Location | Packhouse) for one date, as a plain PDF.
+    It lists the orders DISPATCHED on that date. Orders dispatched before dispatch dates were recorded
+    count as dispatched on their booking date. Admin only."""
     orders = (
         db.query(Order)
         .options(joinedload(Order.customer), joinedload(Order.packhouse))
-        .filter(Order.order_date == day)
+        .filter(Order.status == OrderStatus.dispatched, func.coalesce(Order.dispatch_date, Order.order_date) == day)
         .order_by(Order.id.desc())
         .all()
     )
@@ -232,7 +305,7 @@ def summary_pdf(
     return Response(
         content=pdf,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="Summary_{day.strftime("%d-%m-%Y")}.pdf"'},
+        headers={"Content-Disposition": f'inline; filename="Dispatch_Summary_{day.strftime("%d-%m-%Y")}.pdf"'},
     )
 
 
@@ -301,4 +374,4 @@ async def upload_order_file(
 
     db.commit()
     db.refresh(order)
-    return order
+    return _order_out_for(current_user, order)

@@ -14,6 +14,8 @@ class Grower(Base):
     city = Column(String(120), nullable=True)
     mobile = Column(String(20), nullable=True)
     account = Column(String(200), nullable=True)  # payee/account display string
+    account_number = Column(String(30), nullable=True)
+    ifsc_code = Column(String(11), nullable=True)
 
     packhouse_id = Column(Integer, ForeignKey("packhouses.id"), nullable=False)
     packhouse = relationship("Packhouse", back_populates="growers")
