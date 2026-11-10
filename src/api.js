@@ -224,6 +224,19 @@ export const api = {
     if (!res.ok) throw new ApiError(`Could not load the business card (${res.status})`, res.status);
     return res.blob();
   },
+  async getPaymentsPdf({ date, status, packhouseId } = {}) {
+    const params = new URLSearchParams();
+    if (date) params.set("date", date);
+    if (status) params.set("status", status);
+    if (packhouseId) params.set("packhouse_id", packhouseId);
+    const query = params.toString();
+    const token = getToken();
+    const res = await fetch(`${API_URL}/payments/pdf${query ? `?${query}` : ""}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new ApiError(`Could not create the PDF (${res.status})`, res.status);
+    return res.blob();
+  },
   async getSummaryPdf(date) {
     const token = getToken();
     const res = await fetch(`${API_URL}/orders/summary-pdf?date=${encodeURIComponent(date)}`, {

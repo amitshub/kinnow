@@ -1,12 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import date as date_type
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_user, get_db, require_admin, resolve_packhouse_id
 from app.crud.codes import next_code
 from app.models.grower import Grower
+from app.models.packhouse import Packhouse
 from app.models.payment import PaymentRequest, PaymentStatus
 from app.models.user import User
 from app.schemas.payment import PaymentCreate, PaymentOut
+from app.services.payments_pdf import build_payments_pdf
 
 router = APIRouter(prefix="/payments", tags=["payments"])
 
@@ -17,13 +21,48 @@ def _to_out(p: PaymentRequest) -> PaymentOut:
         code=p.code,
         grower_id=p.grower_id,
         grower_name=p.grower.name if p.grower else "",
+        grower_city=p.grower.city if p.grower else None,
         account=p.account,
+        account_number=p.grower.account_number if p.grower else None,  # live values from the grower's profile
+        ifsc_code=p.grower.ifsc_code if p.grower else None,
         packhouse_id=p.packhouse_id,
+        packhouse_name=p.packhouse.name if p.packhouse else "",
         amount=p.amount,
         request_date=p.request_date,
         status=p.status,
         note=p.note,
     )
+
+
+@router.get("/pdf")
+def payments_pdf(
+    day: date_type | None = Query(None, alias="date"),
+    status_filter: PaymentStatus | None = Query(None, alias="status"),
+    packhouse_id: int | None = None,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    """The admin Payments list as a PDF: Packhouse | Account name | A/c no. | IFSC | Amount.
+    Takes the same filters as the screen (date, status, packhouse); leave one out to include all."""
+    q = db.query(PaymentRequest).options(joinedload(PaymentRequest.grower), joinedload(PaymentRequest.packhouse))
+    if day:
+        q = q.filter(PaymentRequest.request_date == day)
+    if status_filter:
+        q = q.filter(PaymentRequest.status == status_filter)
+    packhouse_name = "All packhouses"
+    if packhouse_id:
+        q = q.filter(PaymentRequest.packhouse_id == packhouse_id)
+        ph = db.query(Packhouse).filter(Packhouse.id == packhouse_id).first()
+        packhouse_name = ph.name if ph else f"#{packhouse_id}"
+
+    pdf = build_payments_pdf(
+        q.all(),
+        date_text=day.strftime("%d-%m-%Y") if day else "All dates",
+        status_text=status_filter.value if status_filter else "All",
+        packhouse_text=packhouse_name,
+    )
+    name = f"Payments_{day.strftime('%d-%m-%Y') if day else 'All_dates'}.pdf"
+    return Response(content=pdf, media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{name}"'})
 
 
 @router.get("", response_model=list[PaymentOut])
@@ -39,7 +78,7 @@ def list_payments(
     Admin: pass `all_packhouses=true` for the "Admin - All Payments" view,
     or a specific `packhouse_id` to filter to one.
     """
-    q = db.query(PaymentRequest).options(joinedload(PaymentRequest.grower))
+    q = db.query(PaymentRequest).options(joinedload(PaymentRequest.grower), joinedload(PaymentRequest.packhouse))
 
     if current_user.role == "admin" and all_packhouses:
         pass  # no packhouse filter — admin sees everything

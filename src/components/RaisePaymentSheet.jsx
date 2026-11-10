@@ -18,6 +18,12 @@ export default function RaisePaymentSheet({ open, presetGrowerId, presetAmount, 
     }
   }, [open, presetGrowerId, presetAmount]);
 
+  // "GROWER NAME - CITY". If two growers would still look identical (same name, same city), the grower's
+  // code is added to those, e.g. "RAM SINGH - ABOHAR (G006)", so the right person can be picked.
+  const baseLabel = (g) => (g.city ? `${g.name} - ${g.city}` : g.name).toUpperCase();
+  const labelCounts = growers.reduce((counts, g) => ({ ...counts, [baseLabel(g)]: (counts[baseLabel(g)] || 0) + 1 }), {});
+  const growerLabel = (g) => (labelCounts[baseLabel(g)] > 1 && g.code ? `${baseLabel(g)} (${g.code})` : baseLabel(g));
+
   function handleGrowerPick(gId) {
     const g = growers.find((x) => x.id === Number(gId));
     setForm((f) => ({ ...f, grower: gId, account: g?.account || "" }));
@@ -53,7 +59,7 @@ export default function RaisePaymentSheet({ open, presetGrowerId, presetAmount, 
             <select className="form-control" value={form.grower} onChange={(e) => handleGrowerPick(e.target.value)}>
               <option value="">Select grower…</option>
               {growers.map((g) => (
-                <option key={g.id} value={g.id}>{g.name}</option>
+                <option key={g.id} value={g.id}>{growerLabel(g)}</option>
               ))}
             </select>
           </div>

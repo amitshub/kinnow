@@ -30,7 +30,7 @@ import AdminHome from "./views/AdminHome";
 
 import { api, setToken } from "./api";
 import { todayStr, shiftDate } from "./utils";
-import { downloadChallanPdf, printChallanPdf, downloadSummaryPdf } from "./challanPdf";
+import { downloadChallanPdf, printChallanPdf, downloadSummaryPdf, downloadPaymentsPdf } from "./challanPdf";
 import { SHOW_PRICE } from "./features";
 
 /* =====================================================
@@ -79,8 +79,12 @@ const mapPayment = (p) => ({
   code: p.code,
   growerId: p.grower_id,
   growerName: p.grower_name,
+  growerCity: p.grower_city || "",
   packhouseId: p.packhouse_id,
+  packhouseName: p.packhouse_name || "",
   account: p.account || "",
+  accountNumber: p.account_number || "",
+  ifsc: p.ifsc_code || "",
   amount: p.amount,
   date: p.request_date,
   status: p.status,
@@ -517,6 +521,15 @@ function AdminApp({ session, onLogout, toast, showToast }) {
     }
   }
 
+  async function handleDownloadPaymentsPdf(filters) {
+    try {
+      showToast("Preparing PDF…");
+      await downloadPaymentsPdf(filters);
+    } catch (e) {
+      showToast(e.message);
+    }
+  }
+
   async function handleRejectPayment(id) {
     try {
       await api.rejectPayment(id);
@@ -594,6 +607,7 @@ function AdminApp({ session, onLogout, toast, showToast }) {
                 packhouses={packhouses}
                 onApprove={handleApprovePayment}
                 onReject={handleRejectPayment}
+                onDownloadPdf={handleDownloadPaymentsPdf}
               />
             )}
           </div>

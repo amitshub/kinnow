@@ -33,7 +33,7 @@ export default function PaymentsView({ paymentRequests }) {
                 <Banknote size={17} />
               </div>
               <div>
-                <div className="pay-grower">{p.growerName}</div>
+                <div className="pay-grower">{p.growerName.toUpperCase()}</div>
                 <div className="pay-account">
                   <CreditCard size={10} style={{ verticalAlign: -1, marginRight: 3 }} />
                   {p.account}

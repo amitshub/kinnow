@@ -22,6 +22,10 @@ DISPATCH_CONTENT_ID = 2
 # approval is needed. "1" = Date, "2" = Customer Name, "3" = Location, "4" = Truck Number.
 DISPATCH_CODE_SLOT = "1"
 
+# The dispatch alert goes to the admin(s) AND to these numbers (10-digit mobiles). A number that is
+# also an admin's mobile only gets one copy.
+EXTRA_DISPATCH_NUMBERS = ["9837249013"]
+
 
 def _item_prefix(order_item) -> str:
     name = (getattr(order_item, "item", None) or "").strip()
@@ -141,8 +145,8 @@ def send_order_assigned_notification(order_id: int) -> None:
 
 def send_order_dispatched_notification(order_id: int) -> None:
     """
-    Fire-and-forget: tells the admin(s) via WhatsApp that a packhouse has
-    entered dispatch details for an order. Uses the approved template stored
+    Fire-and-forget: tells the admin(s) - plus EXTRA_DISPATCH_NUMBERS - via WhatsApp that a packhouse
+    has entered dispatch details for an order. Uses the approved template stored
     in message_content (id = DISPATCH_CONTENT_ID) with variables:
       {{1}} date, {{2}} customer name, {{3}} location,
       {{4}} truck number, {{5}} driver mobile
@@ -178,9 +182,13 @@ def send_order_dispatched_notification(order_id: int) -> None:
             .order_by(User.id)
             .all()
         )
-        admins = [a for a in admins if a.mobile]
-        if not admins:
-            logger.warning("WhatsApp dispatch notify: no active admin with a mobile number")
+        recipients: list[str] = []
+        for mobile in [a.mobile for a in admins] + EXTRA_DISPATCH_NUMBERS:
+            mobile = (mobile or "").strip()
+            if mobile and mobile not in recipients:
+                recipients.append(mobile)
+        if not recipients:
+            logger.warning("WhatsApp dispatch notify: no recipient numbers (no admin mobile, no extra numbers)")
             return
 
         # WhatsApp rejects empty template variables, so fall back to "-".
@@ -200,17 +208,17 @@ def send_order_dispatched_notification(order_id: int) -> None:
 
         client = Client(company.twilio_sid, company.twilio_token)
 
-        for admin in admins:
+        for mobile in recipients:
             try:
                 client.messages.create(
                     from_=f"whatsapp:{content.sender.sender_number}",
-                    to=f"whatsapp:+91{admin.mobile}",
+                    to=f"whatsapp:+91{mobile}",
                     content_sid=content.content_sid,
                     content_variables=content_variables,
                 )
-                logger.info("WhatsApp dispatch notify: sent order %s dispatch alert to admin %s", order.code, admin.mobile)
+                logger.info("WhatsApp dispatch notify: sent order %s dispatch alert to %s", order.code, mobile)
             except Exception:
-                logger.exception("WhatsApp dispatch notify: failed to send to admin %s for order %s", admin.mobile, order_id)
+                logger.exception("WhatsApp dispatch notify: failed to send to %s for order %s", mobile, order_id)
 
     except Exception:  # noqa: BLE001 — never let a notification failure break the dispatch save
         logger.exception("WhatsApp dispatch notify: failed for order %s", order_id)

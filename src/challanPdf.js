@@ -27,6 +27,14 @@ export async function downloadChallanPdf(order) {
   saveBlob(blob, `${fileStem(order)}.pdf`);
 }
 
+// Admin Payments screen "PDF" button: the list as filtered on screen (date / status / packhouse; blank = all).
+export async function downloadPaymentsPdf({ date, status, packhouseId }) {
+  const blob = await api.getPaymentsPdf({ date, status, packhouseId });
+  const [y, m, d] = (date || "").split("-");
+  const parts = ["Payments", date ? `${d}-${m}-${y}` : "All_dates", status].filter(Boolean);
+  saveBlob(blob, `${parts.join("_")}.pdf`);
+}
+
 // Orders screen "PDF" button: the dispatch summary (orders dispatched on the chosen date, YYYY-MM-DD).
 export async function downloadSummaryPdf(date) {
   const blob = await api.getSummaryPdf(date);
