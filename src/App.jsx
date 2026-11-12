@@ -699,6 +699,7 @@ function WorkerApp({ session, onLogout, toast, showToast }) {
   const [growerDetailId, setGrowerDetailId] = useState(null);
   const [growerFormSheet, setGrowerFormSheet] = useState({ open: false, editId: null });
   const [paymentSheet, setPaymentSheet] = useState({ open: false, growerId: null, amount: "" });
+  const [paymentFocus, setPaymentFocus] = useState(null); // { date, n }: make the Payments list show this date
 
   /* ---------------- INCOMING / STOCK ---------------- */
 
@@ -860,6 +861,7 @@ function WorkerApp({ session, onLogout, toast, showToast }) {
       });
       showToast("Payment request submitted ✓");
       setPaymentSheet({ open: false, growerId: null, amount: "" });
+      setPaymentFocus((prev) => ({ date: payload.date, n: (prev?.n || 0) + 1 }));
       bump();
     } catch (e) {
       showToast(e.message);
@@ -950,7 +952,7 @@ function WorkerApp({ session, onLogout, toast, showToast }) {
               <GrowersView growers={growers} incoming={incoming} onOpenGrower={setGrowerDetailId} />
             )}
 
-            {activeTab === "payments" && <PaymentsView paymentRequests={paymentRequests} />}
+            {activeTab === "payments" && <PaymentsView paymentRequests={paymentRequests} focusDate={paymentFocus} onFocusDone={() => setPaymentFocus(null)} />}
 
             {activeTab === "orders" && (
               <AdminOrdersView
