@@ -24,7 +24,7 @@ DISPATCH_CODE_SLOT = "1"
 
 # The dispatch alert goes to the admin(s) AND to these numbers (10-digit mobiles). A number that is
 # also an admin's mobile only gets one copy.
-EXTRA_DISPATCH_NUMBERS = ["9837249013"]
+EXTRA_DISPATCH_NUMBERS = ["9873249013"]
 
 
 def _item_prefix(order_item) -> str:
