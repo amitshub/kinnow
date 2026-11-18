@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Search, Check, Clock, X, Banknote, Calendar, FileText } from "lucide-react";
 import { todayStr } from "../utils";
 
@@ -38,15 +38,36 @@ const pdfBtn = {
   cursor: "pointer",
 };
 
-export default function AdminPaymentsView({ payments, packhouses, onApprove, onReject, onDownloadPdf }) {
+// Shared by the admin (approve/reject, all packhouses) and the packhouse user (read-only, own packhouse).
+// `focusDate` ({ date, n }) jumps the list to a date, e.g. a request that was just raised.
+export default function AdminPaymentsView({
+  payments,
+  packhouses = [],
+  onApprove,
+  onReject,
+  onDownloadPdf,
+  readOnly = false,
+  defaultStatus = "Pending",
+  focusDate,
+  onFocusDone,
+}) {
   const today = todayStr();
   // Opens on today's pending requests; the other filters are one tap away.
-  const [status, setStatus] = useState("Pending");
+  const [status, setStatus] = useState(defaultStatus);
   const [date, setDate] = useState(today);
   const [allDates, setAllDates] = useState(false);
   const [packhouseId, setPackhouseId] = useState("");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState(null);
+
+  useEffect(() => {
+    if (focusDate && focusDate.date) {
+      setDate(focusDate.date);
+      setAllDates(false);
+      if (onFocusDone) onFocusDone();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusDate]);
 
   const packhouseName = (p) => p.packhouseName || packhouses.find((ph) => ph.id === p.packhouseId)?.name || "";
 
@@ -118,6 +139,7 @@ export default function AdminPaymentsView({ payments, packhouses, onApprove, onR
           </button>
         </div>
 
+        {!readOnly && (
         <select
           className="book-form-control"
           aria-label="Packhouse"
@@ -132,6 +154,7 @@ export default function AdminPaymentsView({ payments, packhouses, onApprove, onR
             </option>
           ))}
         </select>
+        )}
 
         <div className="admin-order-search">
           <Search size={18} />
@@ -163,7 +186,7 @@ export default function AdminPaymentsView({ payments, packhouses, onApprove, onR
           <div className="admin-order-empty">
             <Banknote size={42} />
             <h3>No payment requests found</h3>
-            <p>{status === "Pending" && !allDates && date === today ? "Nothing pending today. Try All dates or another status." : "Try a different filter."}</p>
+            <p>{!allDates && date === today ? "Nothing for today. Try All dates or another status." : "Try a different filter."}</p>
           </div>
         ) : (
           <div style={{ overflowX: "auto", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12 }}>
@@ -275,7 +298,7 @@ export default function AdminPaymentsView({ payments, packhouses, onApprove, onR
                 )}
               </div>
 
-              {selected.status === "Pending" && (
+              {!readOnly && selected.status === "Pending" && (
                 <div className="admin-order-actions">
                   <button className="admin-confirm-btn" onClick={() => handleApprove(selected.id)}>
                     <Check size={16} /> Mark as Paid

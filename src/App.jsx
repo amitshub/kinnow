@@ -833,6 +833,15 @@ function WorkerApp({ session, onLogout, toast, showToast }) {
     }
   }
 
+  async function handleDownloadPaymentsPdf(filters) {
+    try {
+      showToast("Preparing PDF…");
+      await downloadPaymentsPdf(filters);
+    } catch (e) {
+      showToast(e.message);
+    }
+  }
+
   /* ---------------- PAYMENTS ---------------- */
 
   function openRaisePayment(presetGrowerId = null) {
@@ -952,7 +961,7 @@ function WorkerApp({ session, onLogout, toast, showToast }) {
               <GrowersView growers={growers} incoming={incoming} onOpenGrower={setGrowerDetailId} />
             )}
 
-            {activeTab === "payments" && <PaymentsView paymentRequests={paymentRequests} focusDate={paymentFocus} onFocusDone={() => setPaymentFocus(null)} />}
+            {activeTab === "payments" && <PaymentsView paymentRequests={paymentRequests} focusDate={paymentFocus} onFocusDone={() => setPaymentFocus(null)} onDownloadPdf={handleDownloadPaymentsPdf} />}
 
             {activeTab === "orders" && (
               <AdminOrdersView

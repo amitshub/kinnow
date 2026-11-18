@@ -40,10 +40,13 @@ def payments_pdf(
     status_filter: PaymentStatus | None = Query(None, alias="status"),
     packhouse_id: int | None = None,
     db: Session = Depends(get_db),
-    _admin: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ):
-    """The admin Payments list as a PDF: Packhouse | Account name | A/c no. | IFSC | Amount.
-    Takes the same filters as the screen (date, status, packhouse); leave one out to include all."""
+    """The Payments list as a PDF: Packhouse | Account name | A/c no. | IFSC | Amount, with a total.
+    Takes the same filters as the screen (date, status, packhouse); leave one out to include all.
+    Packhouse users always get only their own packhouse."""
+    if current_user.role != "admin":
+        packhouse_id = current_user.packhouse_id
     q = db.query(PaymentRequest).options(joinedload(PaymentRequest.grower), joinedload(PaymentRequest.packhouse))
     if day:
         q = q.filter(PaymentRequest.request_date == day)
