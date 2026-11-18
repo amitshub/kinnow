@@ -1,10 +1,12 @@
 import React, { useState } from "react";
-import { Phone, Lock, LogIn } from "lucide-react";
+import { Phone, Lock, LogIn, Eye, EyeOff } from "lucide-react";
 import { api } from "../api";
 
 export default function LoginScreen({ onLogin }) {
   const [mobile, setMobile] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -16,7 +18,7 @@ export default function LoginScreen({ onLogin }) {
     setSubmitting(true);
     setError("");
     try {
-      await api.login(mobile.trim(), password);
+      await api.login(mobile.trim(), password, remember);
       const me = await api.me();
       onLogin(me);
     } catch (err) {
@@ -62,15 +64,28 @@ export default function LoginScreen({ onLogin }) {
             <Lock size={15} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "var(--text-4)" }} />
             <input
               className="form-control"
-              style={{ paddingLeft: 34 }}
-              type="password"
+              style={{ paddingLeft: 34, paddingRight: 40 }}
+              type={showPassword ? "text" : "password"}
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleLogin()}
             />
+            <button
+              type="button"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              onClick={() => setShowPassword((v) => !v)}
+              style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", padding: 8, cursor: "pointer", color: "var(--text-4)", display: "flex" }}
+            >
+              {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+            </button>
           </div>
         </div>
+
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-2, #374151)", margin: "2px 0 16px", cursor: "pointer" }}>
+          <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} style={{ width: 16, height: 16, accentColor: "var(--green)" }} />
+          Remember me (stay signed in for 30 days)
+        </label>
 
         <button className="btn btn-green" onClick={handleLogin} disabled={submitting}>
           <LogIn size={16} /> {submitting ? "Signing in…" : "Login"}

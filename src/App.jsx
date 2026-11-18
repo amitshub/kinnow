@@ -129,8 +129,9 @@ export default function App() {
       try {
         const me = await api.me();
         setSession(me);
-      } catch {
-        setToken(null);
+      } catch (e) {
+        // Only an expired/invalid login signs the user out; a network hiccup keeps the saved token.
+        if (e && (e.status === 401 || e.status === 403)) setToken(null);
       } finally {
         setAuthLoading(false);
       }

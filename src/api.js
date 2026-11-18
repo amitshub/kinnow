@@ -7,12 +7,23 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const TOKEN_KEY = "kinonow_token";
 
 export function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
+  try {
+    return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
 }
 
-export function setToken(token) {
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
+// remember = true keeps the login on this device until the user logs out (localStorage);
+// false keeps it only for the current session (sessionStorage).
+export function setToken(token, remember = true) {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(TOKEN_KEY);
+    if (token) (remember ? localStorage : sessionStorage).setItem(TOKEN_KEY, token);
+  } catch {
+    // storage unavailable
+  }
 }
 
 class ApiError extends Error {
@@ -68,12 +79,12 @@ function qs(params) {
 
 export const api = {
   // ---- Auth ----
-  async login(mobile, password) {
+  async login(mobile, password, remember = true) {
     const form = new URLSearchParams();
     form.set("username", mobile);
     form.set("password", password);
-    const data = await request("/auth/login", { method: "POST", body: form, isForm: true });
-    setToken(data.access_token);
+    const data = await request(`/auth/login${remember ? "?remember=true" : ""}`, { method: "POST", body: form, isForm: true });
+    setToken(data.access_token, remember);
     return data;
   },
   logout() {
